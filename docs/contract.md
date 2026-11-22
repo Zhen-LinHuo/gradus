@@ -200,7 +200,7 @@ on this machine" and "what was requested" can be compared without guesswork.
 | 0 | Success |
 | 1 | Usage error |
 | 2 | Validation error in the configuration or answer file |
-| 3 | Target unsuitable (mounted, missing, too small, live medium) |
+| 3 | Target unsuitable (mounted, missing, too small, live medium, insufficient privileges) |
 | 4 | Installation failed |
 | 5 | Interrupted by the operator |
 

@@ -131,5 +131,10 @@ guix shell -D -f guix.scm -- make check
 ./pre-inst-env guix system --help
 ```
 
+A caution that cost a real debugging session: `guix shell --pure` strips the
+host PATH, so a driver that shells out to `mount`, `losetup` or `partprobe`
+will fail with `execvp: No such file or directory`. Run the installer either
+without `--pure`, or with the needed host directories restored explicitly.
+
 `guix.scm` is added with the first code commit. Until then this document is the
 specification the code must satisfy.
