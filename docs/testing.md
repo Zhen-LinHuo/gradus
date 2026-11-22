@@ -77,6 +77,58 @@ Cases that must fail with the documented exit status and a readable message:
 | `--erase` without `--target` | 1 |
 | UEFI bootloader declared, no ESP among the file systems | 2 |
 
+## T6 — Proxy test
+
+**Question:** can an installation complete on a network with no direct egress,
+and does the installed system keep using the proxy?
+
+Procedure: install with `http_proxy`/`https_proxy` set to a proxy that is the
+only route out, and with a `no_proxy` entry covering the local substitute cache.
+
+Pass criteria:
+
+- channels and substitutes are fetched through the proxy;
+- the local cache is contacted **directly** (its access log shows the
+  installation, the proxy's log does not);
+- after the first boot, `guix build` on the installed system still reaches the
+  network without the operator exporting variables by hand;
+- proxy credentials do not appear in the transcript or in
+  `/etc/gradus/provenance.scm`.
+
+## T7 — Self-hosted cache test
+
+**Question:** does a substitute service on the local network work during the
+installation and afterwards?
+
+Procedure: run `guix publish` on a second machine; declare it as a `builder`
+with its signing key; install with external substitutes disabled.
+
+Pass criteria:
+
+- the installation fetches store items from the cache (proof: the cache's access
+  log, not the installer's claim);
+- the key is authorised in the live environment **and** present in the target's
+  `guix-configuration`;
+- after the first boot, `guix build` uses the cache without further setup;
+- removing the key from the answer file makes the installation fail loudly
+  rather than fall back to an unsigned source.
+
+## T8 — No bootloader test
+
+**Question:** is "do not install a bootloader" a real option rather than a
+refusal?
+
+Procedure: install onto a disk that already carries a bootloader, with
+`bootloader = none`.
+
+Pass criteria:
+
+- the installation completes;
+- the existing bootloader is byte-identical afterwards (compare the relevant
+  partition or checksum);
+- the review stage warned that the machine will not boot unaided;
+- the resulting `/etc/config.scm` contains no `bootloader` field.
+
 ## Matrix
 
 Every release candidate is installed at least once per row.
@@ -84,9 +136,12 @@ Every release candidate is installed at least once per row.
 | Axis | Values |
 |:--|:--|
 | Firmware | BIOS, UEFI |
+| Bootloader | installed, `none` |
 | Storage | single disk, LVM, LUKS, separate `/home` |
 | Console | graphical, serial (`console=ttyS0`) |
 | Network | DHCP wired, static wired, wireless |
+| Egress | direct, HTTP proxy, proxy with a `no_proxy` exception |
+| Substitutes | official only, LAN mirror, LAN builder (`guix publish`) |
 | Memory | 2 GiB (floor), 8 GiB |
 | Architecture | x86_64 (v0.1+), aarch64, RISC-V (later) |
 
@@ -112,5 +167,8 @@ enabled. At least one installation per release is performed on physical
 hardware, because firmware quirks and device enumeration are exactly what a VM
 does not reproduce.
 
-Builds and VM runs are CPU- and I/O-heavy; run them on a build host, not on a
-machine whose availability matters during the test.
+Builds and VM runs are CPU- and I/O-heavy. They belong on a dedicated build host
+with KVM enabled, at least eight virtual CPUs and enough memory to hold two
+Guix System builds and a VM at once (16 GiB is a practical floor). The named
+host used by this project's maintainer is recorded in `AGENTS.local.md`; the
+public tree does not name private machines.

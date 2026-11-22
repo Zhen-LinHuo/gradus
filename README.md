@@ -87,8 +87,17 @@ guarantees the installer makes.
 |:--|:--|
 | [`docs/contract.md`](docs/contract.md) | The shared contract: CLI, answer file, artefacts, guarantees, versioning |
 | [`docs/pages.md`](docs/pages.md) | Page-by-page specification of the interactive installer |
+| [`docs/install-flow.md`](docs/install-flow.md) | Stage-by-stage flow, and what is taken from YaST/Agama and Anaconda |
+| [`docs/implementation.md`](docs/implementation.md) | Language, module layout, Guix boundary, upstream coding conventions |
 | [`docs/testing.md`](docs/testing.md) | Acceptance tests and the VM/hardware matrix every release must pass |
 | [`docs/upstream.md`](docs/upstream.md) | What belongs in this project and what belongs in Guix itself |
+
+## Implementation
+
+Guile Scheme. The reasons, the module layout and the boundary with Guix are in
+[`docs/implementation.md`](docs/implementation.md). The short version: the
+artefact is a Scheme program, so it is generated and validated in the language
+that evaluates it, and pages can still be offered upstream.
 
 ## Roadmap
 
@@ -96,11 +105,12 @@ guarantees the installer makes.
       `operating-system`, keep provenance. No partitioning yet.
 - [ ] v0.2 — storage page and `--erase`: partitioning, LVM, LUKS, preservation
       of existing data volumes.
-- [ ] v0.3 — source page: channels and substitute URLs with signing-key import,
-      applied both to the live environment and to the target's
-      `guix-configuration`.
-- [ ] v0.4 — boot page: bootloader, target, timeout, default entry, serial
-      console, retention of previous generations.
+- [ ] v0.3 — source page: channels, substitute services (`official`, `mirror`,
+      `builder`, including a self-hosted `guix publish` cache), signing-key
+      import, and proxy settings applied both to the live environment and to the
+      target's `guix-configuration`.
+- [ ] v0.4 — boot page: bootloader (including `none`), target, kernel choice,
+      extra kernel arguments, menu policy, NVRAM handling, serial console.
 - [ ] v0.5 — software and user pages; unattended `--answers`.
 - [ ] v0.6 — arm64 and RISC-V targets.
 

@@ -36,6 +36,8 @@ prints it to standard output, and exits without touching any device.
 | `--answers FILE` | Read installation decisions from `FILE`; render the configuration from them |
 | `--target DEV` | Device that receives the bootloader (and, with `--erase`, the system) |
 | `--erase` | Permit writing to `DEV`. Without it, a device carrying a file system is refused |
+| `--proxy URL` | Use this HTTP/HTTPS proxy for the installation, overriding the answer file |
+| `--no-proxy LIST` | Comma-separated hosts that bypass the proxy, overriding the answer file |
 | `--dry-run` | Check and print; write nothing |
 | `--yes` | Answer confirmation prompts affirmatively (requires `--erase` for destructive modes) |
 | `--log FILE` | Write the transcript to `FILE` in addition to the default location |
@@ -76,10 +78,21 @@ policies, and the renderer fills in everything else from the selected profile.
  (keyboard . "gb")
  (host-name . "workstation")
 
+ (proxy
+  (http . "http://proxy.example.net:3128")
+  (https . "http://proxy.example.net:3128")
+  (no-proxy . ("localhost" "cache.example.net")))
+
  (source
   (channels . "channels.scm")
-  (substitute-urls . ("https://..."))
-  (signing-key . "key.pub"))
+  (substitute-services
+   ((name . "official")
+    (url . "https://ci.guix.gnu.org")
+    (kind . official))
+   ((name . "lan-cache")
+    (url . "http://cache.example.net")
+    (kind . builder)
+    (key . "cache.example.net.pub"))))
 
  (storage
   (mode . simple)                 ; simple | lvm | existing
@@ -90,10 +103,14 @@ policies, and the renderer fills in everything else from the selected profile.
   (data-volumes . ()))            ; never formatted unless erase? is #t per volume
 
  (boot
-  (bootloader . grub-efi)
-  (timeout . 5)
+  (bootloader . grub-efi)         ; grub-efi | grub-bios | extlinux | u-boot | none
+  (target . "/dev/nvme0n1")
+  (kernel . linux-libre)
+  (extra-kernel-arguments . ("console=ttyS0,115200"))
+  (timeout . 5)                   ; -1 waits indefinitely
+  (stop-at-menu . #f)
   (default-entry . 0)
-  (serial-console . #f)
+  (update-nvram . #t)
   (keep-generations . 5))
 
  (network
@@ -118,8 +135,29 @@ Rules:
   `storage` and `users`; omitted keys take documented defaults.
 - `erase` defaults to `#f`. A data volume is never formatted implicitly; each
   volume carries its own `erase?` flag.
+- `bootloader` may be `none`. In that case no bootloader is installed and the
+  existing one is left untouched; the renderer omits the field and the review
+  stage states plainly that the machine will not boot unaided.
+- A substitute service's `kind` decides whether a key is required. `mirror`
+  serves official store paths signed by their original builders and needs no new
+  key; `builder` signs its own artefacts and must carry one.
+- Proxy credentials are secrets. They are never printed in full, and they are
+  written to the target only when the operator asks for that.
+- Command-line `--proxy` and `--no-proxy` override the corresponding answer-file
+  values; the answer file is not rewritten to match.
 - The renderer is deterministic: the same answer file and the same profile at
   the same version produce the same declaration.
+
+### 4.1 Sources and trust
+
+The installer never adds a source of its own. The source list in the answer file
+is used in the order written, both in the live environment and in the target's
+`guix-configuration`.
+
+Signature checking is never relaxed. A mirror accelerates; it does not vouch.
+The keys authorised for the live environment are the same keys written into the
+target, so a key that is only present during installation does not silently
+disappear at the first boot.
 
 ## 5. Artefacts
 
@@ -150,6 +188,10 @@ on this machine" and "what was requested" can be compared without guesswork.
    medium, the installer stops with a non-zero exit status. It does not pick a
    default device.
 5. **Provenance.** A successful installation always leaves the artefacts in §5.
+6. **Proxy where it is needed.** A proxy configured for the installation is used
+   for every fetch the installation performs, and is configured for the target's
+   Guix daemon. A `no_proxy` entry always takes precedence, so a local cache is
+   not sent through the proxy that provides external access.
 
 ## 7. Exit status
 
