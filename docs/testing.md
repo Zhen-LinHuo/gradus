@@ -169,6 +169,6 @@ does not reproduce.
 
 Builds and VM runs are CPU- and I/O-heavy. They belong on a dedicated build host
 with KVM enabled, at least eight virtual CPUs and enough memory to hold two
-Guix System builds and a VM at once (16 GiB is a practical floor). The named
-host used by this project's maintainer is recorded in `AGENTS.local.md`; the
-public tree does not name private machines.
+Guix System builds and a VM at once (16 GiB is a practical floor). Which host
+that is, in any given setup, is a matter for the operator's local notes; this
+tree does not name private machines.
