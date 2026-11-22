@@ -1,10 +1,21 @@
-# guix-system-installer
+# Gradus
 
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/Zhen-LinHuo/guix-system-installer)](https://github.com/Zhen-LinHuo/guix-system-installer)
-[![GitHub last commit](https://img.shields.io/github/last-commit/Zhen-LinHuo/guix-system-installer)](https://github.com/Zhen-LinHuo/guix-system-installer)
+[![GitHub stars](https://img.shields.io/github/stars/Zhen-LinHuo/gradus)](https://github.com/Zhen-LinHuo/gradus)
+[![GitHub last commit](https://img.shields.io/github/last-commit/Zhen-LinHuo/gradus)](https://github.com/Zhen-LinHuo/gradus)
 
 An unofficial, **generic** installer for GNU Guix System.
+
+## The name
+
+*Gradus* is Latin for a step: the step at a threshold, and also a degree — one of
+the steps of a course. An installer is exactly that. It establishes the ground
+the system stands on, and then it is finished.
+
+The companion a running system needs — the manager that keeps services, storage
+and updates in order — is **Magister**: the rank reached at the top of the
+*gradus*. In Latin, *gradus magistri* is the degree of master. One ascent with
+two ends: the step, and the household.
 
 You get the same thing every other distribution's installer gives you — language,
 disk layout, bootloader, software selection, users — plus one thing they cannot
@@ -52,16 +63,16 @@ bootloaders and packages — not about "routers" or "NAS boxes".
 
 ```sh
 # Interactive, generic wizard
-guix-system-installer
+gradus
 
 # Install an existing configuration as-is (labels/UUIDs must resolve)
-guix-system-installer --config config.scm --target /dev/nvme0n1
+gradus --config config.scm --target /dev/nvme0n1
 
 # Unattended: answer file supplies the facts, the profile supplies the policy
-guix-system-installer --answers answers.scm --target /dev/nvme0n1 --erase
+gradus --answers answers.scm --target /dev/nvme0n1 --erase
 
 # Validate everything, write nothing
-guix-system-installer --answers answers.scm --dry-run
+gradus --answers answers.scm --dry-run
 ```
 
 See [`docs/contract.md`](docs/contract.md) for the authoritative definition of

@@ -20,9 +20,9 @@ behind.
 
 | Mode | Command shape | What is required | What is written |
 |:--|:--|:--|:--|
-| Interactive | `guix-system-installer` | Nothing | Target disk, only after explicit confirmation |
-| From configuration | `guix-system-installer --config FILE --target DEV` | `FILE`'s file systems must resolve on the target | Target disk, bootloader |
-| Unattended | `guix-system-installer --answers FILE --target DEV --erase` | Complete answer file | Everything the answers describe |
+| Interactive | `gradus` | Nothing | Target disk, only after explicit confirmation |
+| From configuration | `gradus --config FILE --target DEV` | `FILE`'s file systems must resolve on the target | Target disk, bootloader |
+| Unattended | `gradus --answers FILE --target DEV --erase` | Complete answer file | Everything the answers describe |
 | Validation | any of the above plus `--dry-run` | As above | Nothing |
 
 `--dry-run` performs every check, renders the resulting `operating-system`,
@@ -128,9 +128,9 @@ On the target, after a successful installation:
 | Path | Content |
 |:--|:--|
 | `/etc/config.scm` | The exact `operating-system` declaration that was installed |
-| `/etc/guix-installer/answers.scm` | The answers used, or a statement that `--config` mode was used |
-| `/etc/guix-installer/provenance.scm` | Installer version, contract version, Guix revision, UTC timestamp |
-| `/var/log/guix-installer.log` | Full transcript |
+| `/etc/gradus/answers.scm` | The answers used, or a statement that `--config` mode was used |
+| `/etc/gradus/provenance.scm` | Installer version, contract version, Guix revision, UTC timestamp |
+| `/var/log/gradus-install.log` | Full transcript |
 
 `/etc/config.scm` is byte-identical to the file that was reviewed: no
 reformatting, no regeneration after the fact. Provenance exists so that "what is
@@ -185,4 +185,4 @@ currently on the target. It does not attempt an automatic repair.
 - The answer file declares its own `schema-version`; the installer refuses a
   schema it does not implement rather than ignoring unknown fields.
 - Supported Guix System: the current stable release at the time of the product
-  release, recorded in `/etc/guix-installer/provenance.scm`.
+  release, recorded in `/etc/gradus/provenance.scm`.

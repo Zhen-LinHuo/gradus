@@ -26,14 +26,14 @@ must contain no private identifiers.
 
 **Question:** does an answer file produce exactly the system it declares?
 
-Procedure: `guix-system-installer --answers answers.scm --target DEV --erase`,
+Procedure: `gradus --answers answers.scm --target DEV --erase`,
 with no terminal attached.
 
 Pass criteria:
 
 - exit status 0, no prompt, no hang;
 - `/etc/config.scm` is byte-identical to the file printed by `--dry-run`;
-- `/etc/guix-installer/provenance.scm` records installer version, contract
+- `/etc/gradus/provenance.scm` records installer version, contract
   version and Guix revision;
 - a second run with the same inputs produces the same declaration.
 
@@ -98,7 +98,7 @@ for a release, even a documentation-only one.
 An installation counts as tested only when all of the following are attached to
 the release notes:
 
-- the installer transcript (`/var/log/guix-installer.log`);
+- the installer transcript (`/var/log/gradus-install.log`);
 - the installed `/etc/config.scm`;
 - `guix system describe` output from the installed system;
 - for T4, checksums of the preserved volume before and after.
