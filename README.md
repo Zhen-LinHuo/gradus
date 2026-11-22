@@ -1,21 +1,12 @@
 # Gradus
 
+## A generic installer for GNU Guix System
+
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/Zhen-LinHuo/gradus)](https://github.com/Zhen-LinHuo/gradus)
 [![GitHub last commit](https://img.shields.io/github/last-commit/Zhen-LinHuo/gradus)](https://github.com/Zhen-LinHuo/gradus)
 
-An unofficial, **generic** installer for GNU Guix System.
-
-## The name
-
-*Gradus* is Latin for a step: the step at a threshold, and also a degree — one of
-the steps of a course. An installer is exactly that. It establishes the ground
-the system stands on, and then it is finished.
-
-The companion a running system needs — the manager that keeps services, storage
-and updates in order — is **Magister**: the rank reached at the top of the
-*gradus*. In Latin, *gradus magistri* is the degree of master. One ascent with
-two ends: the step, and the household.
+An unofficial project, not affiliated with or endorsed by the GNU Guix project.
 
 You get the same thing every other distribution's installer gives you — language,
 disk layout, bootloader, software selection, users — plus one thing they cannot
@@ -27,6 +18,17 @@ machine afterwards.
 > currently holds the contract, the page specification and the acceptance tests.
 > Watch the roadmap below; v0.1 will be the minimum that can install a plain
 > Guix System from an unattended profile.
+
+## The name
+
+*Gradus* is Latin for a step: the step at a threshold, and also a degree — one of
+the steps of a course. An installer is exactly that. It establishes the ground
+the system stands on, and then it is finished.
+
+The companion a running system needs — the manager that keeps services, storage
+and updates in order — is **Magister**: the rank reached at the top of the
+*gradus*. In Latin, *gradus magistri* is the degree of master. One ascent with
+two ends: the step, and the household.
 
 ## Why another installer
 
