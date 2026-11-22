@@ -162,6 +162,9 @@ Screenshots are welcome but are not evidence: they cannot be diffed.
 
 ## Environment
 
+The runbook for the virtual-machine procedure is
+[`tests/vm/README.md`](../tests/vm/README.md).
+
 Virtual machines use QEMU with OVMF for UEFI and SeaBIOS for legacy boot, KVM
 enabled. At least one installation per release is performed on physical
 hardware, because firmware quirks and device enumeration are exactly what a VM
