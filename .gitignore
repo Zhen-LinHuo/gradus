@@ -1,0 +1,16 @@
+# Local notes — not tracked
+AGENTS.local.md
+.private-patterns
+
+# Build and test artefacts
+/result
+/result-*
+/tmp/
+*.iso
+*.img
+*.qcow2
+*.log
+
+# Editors and OS
+.DS_Store
+*~

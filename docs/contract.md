@@ -1,0 +1,188 @@
+# The installer contract
+
+This document is the authoritative definition of what the installer accepts,
+what it produces, and what it promises. Anything that consumes the installer —
+a fleet repository, a CI job, a human with a USB stick — may rely on this file
+and on nothing else.
+
+Contract version: **1**. Product version: **0.1.0** (design stage).
+
+## 1. Scope
+
+The installer turns *installation decisions* into an installed Guix System and
+into the `operating-system` declaration that describes it.
+
+It is not a configuration manager. After installation, the machine is managed
+with `guix system reconfigure` and the configuration file the installer left
+behind.
+
+## 2. Invocation modes
+
+| Mode | Command shape | What is required | What is written |
+|:--|:--|:--|:--|
+| Interactive | `guix-system-installer` | Nothing | Target disk, only after explicit confirmation |
+| From configuration | `guix-system-installer --config FILE --target DEV` | `FILE`'s file systems must resolve on the target | Target disk, bootloader |
+| Unattended | `guix-system-installer --answers FILE --target DEV --erase` | Complete answer file | Everything the answers describe |
+| Validation | any of the above plus `--dry-run` | As above | Nothing |
+
+`--dry-run` performs every check, renders the resulting `operating-system`,
+prints it to standard output, and exits without touching any device.
+
+### 2.1 Option reference (v1)
+
+| Option | Effect |
+|:--|:--|
+| `--config FILE` | Install this `operating-system` declaration as written |
+| `--answers FILE` | Read installation decisions from `FILE`; render the configuration from them |
+| `--target DEV` | Device that receives the bootloader (and, with `--erase`, the system) |
+| `--erase` | Permit writing to `DEV`. Without it, a device carrying a file system is refused |
+| `--dry-run` | Check and print; write nothing |
+| `--yes` | Answer confirmation prompts affirmatively (requires `--erase` for destructive modes) |
+| `--log FILE` | Write the transcript to `FILE` in addition to the default location |
+| `--version` | Print product and contract version, exit 0 |
+
+`--config` and `--answers` are mutually exclusive. `--target` is mandatory in
+both non-interactive modes.
+
+## 3. Configuration mode
+
+In `--config` mode the installer does **not** modify the declaration. It:
+
+1. validates the declaration (`guix system build --dry-run` equivalent);
+2. checks that every `file-system` device in it resolves on the target — by
+   label or UUID, before any mount is attempted;
+3. checks that the bootloader target is plausible (UEFI system partition
+   present, or BIOS boot area available);
+4. mounts the declared file systems under the target root;
+5. runs `guix system init` with the declaration;
+6. installs the bootloader as the declaration describes.
+
+Device names in the declaration are therefore a caller concern. This mode
+deliberately performs no partitioning: a configuration cannot express partition
+sizes, so inferring a layout from it would be guesswork.
+
+## 4. Answer-file format
+
+An answer file is an S-expression read with Scheme's `read`. It describes the
+*installation*, not the whole system: it carries facts and a small number of
+policies, and the renderer fills in everything else from the selected profile.
+
+```scheme
+;; answers.scm — schema version 1
+((schema-version . 1)
+ (profile . "desktop")
+ (locale . "en_GB.utf8")
+ (timezone . "Europe/London")
+ (keyboard . "gb")
+ (host-name . "workstation")
+
+ (source
+  (channels . "channels.scm")
+  (substitute-urls . ("https://..."))
+  (signing-key . "key.pub"))
+
+ (storage
+  (mode . simple)                 ; simple | lvm | existing
+  (disk . "/dev/nvme0n1")
+  (erase . #f)
+  (encrypt . #f)
+  (swap . file)                   ; none | file | partition
+  (data-volumes . ()))            ; never formatted unless erase? is #t per volume
+
+ (boot
+  (bootloader . grub-efi)
+  (timeout . 5)
+  (default-entry . 0)
+  (serial-console . #f)
+  (keep-generations . 5))
+
+ (network
+  (management . dhcp)             ; dhcp | static
+  (interface . "eno1"))
+
+ (users
+  ((name . "alice")
+   (groups . ("wheel" "audio" "video"))
+   (ssh-keys . ("ssh-ed25519 AAAA..."))))
+
+ (software
+  (extra-packages . ())
+  (manifest . #f)))
+```
+
+Rules:
+
+- Unknown keys are an error, not ignored. Silent acceptance of a typo is how an
+  unattended install ends up different from what the operator reviewed.
+- Every key in the example above is optional except `schema-version`, `profile`,
+  `storage` and `users`; omitted keys take documented defaults.
+- `erase` defaults to `#f`. A data volume is never formatted implicitly; each
+  volume carries its own `erase?` flag.
+- The renderer is deterministic: the same answer file and the same profile at
+  the same version produce the same declaration.
+
+## 5. Artefacts
+
+On the target, after a successful installation:
+
+| Path | Content |
+|:--|:--|
+| `/etc/config.scm` | The exact `operating-system` declaration that was installed |
+| `/etc/guix-installer/answers.scm` | The answers used, or a statement that `--config` mode was used |
+| `/etc/guix-installer/provenance.scm` | Installer version, contract version, Guix revision, UTC timestamp |
+| `/var/log/guix-installer.log` | Full transcript |
+
+`/etc/config.scm` is byte-identical to the file that was reviewed: no
+reformatting, no regeneration after the fact. Provenance exists so that "what is
+on this machine" and "what was requested" can be compared without guesswork.
+
+## 6. Guarantees
+
+1. **No implicit destruction.** A device is written only when it is named by
+   `--target` *and* erasure is requested (`--erase` in unattended mode, an
+   explicit confirmation in interactive mode).
+2. **No hidden sources.** Packages are fetched only from the channels and
+   substitute URLs declared in the answers or configuration. The installer does
+   not add sources of its own.
+3. **Dry run is inert.** `--dry-run` creates no mount, no partition, no file.
+4. **Refusal over guessing.** If a declared file system does not resolve, if the
+   bootloader target is ambiguous, or if the target is mounted or is the live
+   medium, the installer stops with a non-zero exit status. It does not pick a
+   default device.
+5. **Provenance.** A successful installation always leaves the artefacts in §5.
+
+## 7. Exit status
+
+| Code | Meaning |
+|:--|:--|
+| 0 | Success |
+| 1 | Usage error |
+| 2 | Validation error in the configuration or answer file |
+| 3 | Target unsuitable (mounted, missing, too small, live medium) |
+| 4 | Installation failed |
+| 5 | Interrupted by the operator |
+
+After exit 3 or 4, the installer reports exactly which step failed and what is
+currently on the target. It does not attempt an automatic repair.
+
+## 8. Non-guarantees
+
+- No resume of a partially written disk in v1. A failed installation is
+  re-attempted from the beginning; the operator is told what state the target is
+  in.
+- No migration or upgrade of an installed system.
+- No post-install configuration. That is `guix system reconfigure`'s job.
+- No rollback of an activation performed on a running live system. The installer
+  installs; it does not mutate a running system.
+
+## 9. Compatibility and versioning
+
+- **Contract version** changes only when an existing caller would break:
+  option removal, answer-file key removal, artefact path change, altered
+  guarantee. Product major version follows the contract major version.
+- **Product version** is SemVer. Adding a page, an optional answer key or a
+  target architecture is a minor bump.
+- The answer file declares its own `schema-version`; the installer refuses a
+  schema it does not implement rather than ignoring unknown fields.
+- Supported Guix System: the current stable release at the time of the product
+  release, recorded in `/etc/guix-installer/provenance.scm`.
