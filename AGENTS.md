@@ -25,11 +25,40 @@ describe implementation.
 - The body explains *why*; the diff already explains *what*.
 - Every commit is signed. The repository-local identity is recorded in
   `AGENTS.local.md`, which is not tracked.
+- This section governs commits in **this** repository. A patch destined for Guix
+  follows Guix's rules instead: ChangeLog-format log, `Signed-off-by` trailer,
+  `git format-patch --base`. See `docs/implementation.md`.
+
+## Language and upstream patches
+
+- The implementation language is Guile Scheme. Coding conventions are in
+  `docs/implementation.md`; they are Guix's conventions on purpose.
+- Do not copy code from this AGPL-3.0-or-later repository into a Guix patch.
+  Upstream patches are written for Guix and offered under Guix's licence.
+- A patch that cannot be sent upstream without mentioning a private machine,
+  domain or fleet is not upstreamable; keep it here and say so in the commit.
 
 ## Branches and review
 
-- `main` is always installable and always matches `docs/contract.md`.
-- Work happens on `feat/<topic>`, `fix/<topic>` or `docs/<topic>`.
+The model is `feat/* → development → main`:
+
+```
+docs/* · feat/* · fix/* ──merge──▶ development ──pull request──▶ main ──tag──▶ release
+   short-lived                     integration                    release line
+```
+
+- `main` is the release line. It is protected by a repository ruleset: no direct
+  push, no deletion, no force push, linear history only, signed commits only, and
+  every change arrives through a pull request. Feature work never lands on
+  `main` directly.
+- `development` is the integration line. Direct pushes are allowed; deletion and
+  force pushes are not.
+- Work happens on `feat/<topic>`, `fix/<topic>` or `docs/<topic>`, cut from
+  `development` and merged back into it.
+- `development` reaches `main` by pull request, squash-merged so that `main`
+  stays linear. `main` is then merged back into `development`, so the
+  integration line includes the release commit; force pushes are never used.
+- Tags are created on `main` only.
 - A change to the contract needs its own commit and an explicit version
   decision (see below).
 
@@ -45,10 +74,15 @@ describe implementation.
 ## Testing
 
 - Documentation-only changes need no installation test.
-- Any change to storage, boot, source or answer-file handling requires T2 and
-  T5 from `docs/testing.md` on the release candidate, and T1 before the first
-  public release.
+- Any change to storage, boot, source or answer-file handling requires the tests
+  in `docs/testing.md` that cover that area, on the release candidate; T2 and T5
+  are the minimum, and T6–T8 apply when the change touches proxy, substitute
+  services or bootloader selection. T1 is required before the first public
+  release.
 - Test evidence is a transcript and a diffable artefact, never a screenshot.
+- Heavy builds and VM runs happen on the designated build host recorded in
+  `AGENTS.local.md`, never on a machine whose availability matters during the
+  test.
 
 ## Confidentiality gate
 

@@ -20,11 +20,11 @@ the operator cannot inspect first.
 | # | Page | Collects | Defaults | v0.1 |
 |:--|:--|:--|:--|:--|
 | 1 | Localisation | language, territory, keyboard, timezone | live environment's locale | — |
-| 2 | Source | channels file, substitute URLs, signing keys | official channels, official substitutes | — |
+| 2 | Source | channels file, substitute services (name, URL, kind, key), proxy | official channels, official substitutes, no proxy | — |
 | 3 | Storage | disk, scheme (simple/LVM), encryption, swap, data volumes, erase consent | no disk selected; erase off | — |
-| 4 | Boot | bootloader, target, timeout, default entry, serial console, generations kept | GRUB EFI on the ESP, timeout 5 | — |
+| 4 | Boot | bootloader (including `none`), target, kernel, extra kernel arguments, menu policy, NVRAM, generations kept | GRUB EFI on the ESP, timeout 5 | — |
 | 5 | Software | base profile, environment groups, extra packages, manifest file | headless base | — |
-| 6 | Network | host name, management interface, DHCP or static, wireless | DHCP on the first wired interface | — |
+| 6 | Network | host name, management interface, DHCP or static, wireless, proxy and `no_proxy` | DHCP on the first wired interface | — |
 | 7 | Users | root policy, user accounts, groups, SSH keys | one administrative user, no root login | — |
 | 8 | Review | full `config.scm`, diff against the starting profile, save to removable media | — | — |
 | 9 | Install | confirmation, progress, transcript | — | — |
@@ -46,9 +46,9 @@ but a silently guessed one is hard to notice.
 The page the official installer lacks. It collects:
 
 - a channels file (path or URL), defaulting to the distribution's own;
-- an ordered list of substitute URLs;
-- signing keys for those substitutes, by file, by URL, or from a key shipped
-  with the installation image.
+- an ordered list of **substitute services**, each with a name, a URL, a kind
+  (`official`, `mirror` or `builder`) and, for a builder, a signing key;
+- a proxy, with `http`, `https` and `no_proxy` values.
 
 The same values must reach two places, and the page must show both:
 
@@ -59,6 +59,15 @@ The same values must reach two places, and the page must show both:
    declaration from the start.
 
 One input, two destinations, never two lists.
+
+The list is edited in place: add, remove, reorder. Order is visible because
+order is the policy — the fastest reachable source goes first. A "test this
+source" action fetches one narinfo through the configured proxy, so that a
+mistyped cache is discovered here and not twenty minutes into an installation.
+
+The `kind` distinction is shown, not hidden: a mirror needs no key, a builder
+does. Presenting both as "substitute server" would teach the operator to accept
+key prompts without reading them.
 
 ### 3. Storage
 
@@ -78,14 +87,27 @@ declaration outlives the enumeration order.
 
 ### 4. Boot
 
-Bootloader family and target, menu timeout, default entry, serial console, and
-how many previous generations to keep.
+Bootloader family, target and policy, the kernel package, extra kernel
+arguments, menu behaviour and how many previous generations to keep.
 
-These are ordinary fields of `bootloader-configuration`. The official installer
-asks none of them, which is why a headless machine cannot be given a serial
-console at install time. A timeout of `-1` (wait indefinitely) and a serial
-console are the two settings that most often decide whether a remote machine is
-recoverable.
+Non-negotiable behaviours:
+
+- **`none` is a value.** Choosing it installs no bootloader and leaves the
+  existing one untouched. The page states that the machine will not boot
+  unaided; it does not refuse the choice.
+- **Extra kernel arguments are listed, not concatenated silently.** A headless
+  machine needs `console=ttyS0`; a workaround may need one more parameter. The
+  full resulting line is shown on the review page.
+- **Menu behaviour is explicit**: wait time, stop-at-menu (the equivalent of an
+  indefinite wait), default entry, and whether the firmware's NVRAM is updated.
+  Rewriting NVRAM without being asked can stop a machine booting the system the
+  operator wanted.
+- **The kernel package is chosen here.** `linux-libre` is the default; another
+  kernel from a selected channel changes the trust boundary, and the page says
+  so rather than presenting it as a driver choice.
+
+The official installer asks none of this, which is why a headless machine
+cannot be given a serial console at install time.
 
 ### 5. Software
 
@@ -100,13 +122,22 @@ profile that cannot be expressed as a configuration is a bug in the profile.
 
 ### 6. Network
 
-Host name, management interface, addressing and wireless credentials. Static
-configuration is offered but not required; DHCP is the default on the first
-wired interface.
+Host name, management interface, addressing, wireless credentials and proxy.
 
-Wireless credentials are the one secret the installer must accept. They are
-written to the target configuration only if the operator asks for them to be
-kept there; otherwise they are used for the live session and discarded.
+Static configuration is offered but not required; DHCP is the default on the
+first wired interface.
+
+Proxy settings are collected here because everything after this page may need
+them: channels, substitutes, and a remote answer file. `http_proxy` and
+`https_proxy` may differ. The `no_proxy` list is a first-class field, not an
+advanced option — a local substitute cache normally must bypass the proxy that
+provides external access, and sending it through the proxy turns a fast cache
+into a timeout.
+
+Wireless credentials and proxy credentials are the two secrets the installer
+must accept. Both are written to the target configuration only if the operator
+asks for them to be kept there; otherwise they are used for the live session and
+discarded.
 
 ### 7. Users
 
