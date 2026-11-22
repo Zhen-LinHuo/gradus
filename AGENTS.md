@@ -23,8 +23,7 @@ describe implementation.
   `chore:`.
 - Imperative mood, no trailing full stop, subject at most 72 characters.
 - The body explains *why*; the diff already explains *what*.
-- Every commit is signed. The repository-local identity is recorded in
-  `AGENTS.local.md`, which is not tracked.
+- Every commit is signed.
 - This section governs commits in **this** repository. A patch destined for Guix
   follows Guix's rules instead: ChangeLog-format log, `Signed-off-by` trailer,
   `git format-patch --base`. See `docs/implementation.md`.
@@ -80,28 +79,32 @@ docs/* · feat/* · fix/* ──merge──▶ development ──pull request─
   services or bootloader selection. T1 is required before the first public
   release.
 - Test evidence is a transcript and a diffable artefact, never a screenshot.
-- Heavy builds and VM runs happen on the designated build host recorded in
-  `AGENTS.local.md`, never on a machine whose availability matters during the
-  test.
+- Heavy builds and VM runs happen on a dedicated build host with KVM enabled,
+  never on a machine whose availability matters during the test.
 
 ## Confidentiality gate
 
-This repository is public. Before every commit, run the confidentiality gate:
+This repository is public. Before every commit, check the staged diff for
+private identifiers: fleet names, internal domains, host names, private cache
+URLs, IP addresses of machines that are not part of the product. A hit is
+removed or generalised; it is never explained away.
 
-```sh
-test -f .private-patterns || { echo "no pattern file"; exit 1; }
-grep -RInEf .private-patterns --exclude-dir=.git --exclude=AGENTS.local.md .
-```
-
-`.private-patterns` holds this project's forbidden identifiers and is **not**
-tracked; the list itself is documented in `AGENTS.local.md`. The output must be
-empty. A hit is either removed or generalised; it is never explained away.
+A stronger version of this gate exists on the maintainer's machine, driven by an
+untracked pattern file. That list is local and is not part of this tree; a
+contributor must not need it.
 
 ## Identity
 
-Commits in this repository use the public identity recorded in
-`AGENTS.local.md`. Do not commit with a machine's default identity; check
+Commits use the identity configured for this repository, never a machine's
+default. Automated contributors must check
 `git log -1 --format='%an <%ae>'` before the first commit of a session.
+
+## Local notes
+
+An untracked `AGENTS.local.md` may exist on the maintainer's machine. It holds
+machine-local facts — the signing identity, the build host, the private pattern
+list — and it is never referenced by tracked documentation, never referenced by
+code, and never committed. Everything a contributor needs is in this file.
 
 ## Scope discipline
 
