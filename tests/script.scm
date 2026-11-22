@@ -15,6 +15,14 @@
 
   (test-begin "arguments")
 
+  (test-equal "absolute paths pass through"
+    "/tmp/x.scm"
+    (absolute-path "/tmp/x.scm"))
+
+  (test-equal "relative paths resolve against the working directory"
+    (string-append (getcwd) "/system.scm")
+    (absolute-path "system.scm"))
+
   (test-equal "version flag"
     '((version? . #t))
     (parse-arguments '("--version")))

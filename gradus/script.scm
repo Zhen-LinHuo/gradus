@@ -12,10 +12,19 @@
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
   #:export (main
-            parse-arguments))
+            parse-arguments
+            absolute-path))
 
 (define %version "0.1.0")
 (define %contract-version 1)
+
+(define (absolute-path path)
+  "Return PATH as an absolute path, resolved against the working directory.
+`load' resolves relative names against the load path, so a relative --config
+argument must be made absolute before it is loaded."
+  (if (string-prefix? "/" path)
+      path
+      (string-append (getcwd) "/" path)))
 
 (define (usage)
   "Print the command synopsis."
@@ -112,7 +121,7 @@ success; raise on the first failure."
     (log-open (assoc-ref opts 'log))
     (run (alist-delete 'log opts)))
    ((assoc-ref opts 'config)
-    (let ((config (assoc-ref opts 'config))
+    (let ((config (absolute-path (assoc-ref opts 'config)))
           (root (or (assoc-ref opts 'root) "/mnt")))
       (unless (file-exists? config)
         (log-line "no such configuration: ~a" config)
