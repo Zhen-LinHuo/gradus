@@ -9,8 +9,19 @@ catch the embarrassing failures.
 **Question:** can someone who has never heard of this project install a normal
 desktop system with it?
 
-Procedure: a person who has not read the source boots the image, installs a
-desktop configuration with a wired network and one user, and logs in.
+T1 depends on the interactive pages and cannot be fully performed until the
+milestone that ships them. It is therefore staged:
+
+- **T1-u (from v0.1):** an operator who has read only this repository's README
+  and `docs/contract.md` installs a system unattended from a configuration they
+  wrote themselves, using `--config`, and finds the installed declaration where
+  the contract says it is. No private identifiers anywhere in the output.
+- **T1-i (from the pages milestone):** the full stranger walk-through of the
+  interactive installer, as described below.
+
+Procedure (T1-i): a person who has not read the source boots the image,
+installs a desktop configuration with a wired network and one user, and logs
+in.
 
 Pass criteria:
 
