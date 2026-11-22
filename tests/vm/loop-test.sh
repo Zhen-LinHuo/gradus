@@ -15,12 +15,13 @@
 set -eu
 
 : "${GRADUS_REPO:?set GRADUS_REPO to the checkout directory}"
+GUIX=${GUIX:-guix}
 LABEL_ROOT=${LABEL_ROOT:-gradus-root}
 LABEL_ESP=${LABEL_ESP:-GRADUS-ESP}
 
 run_gradus() {
   (cd "$GRADUS_REPO" && \
-   guix shell -q guix guile -- guile -L . gradus/main.scm "$@")
+   "$GUIX" shell -q guix guile -- guile -L . gradus/main.scm "$@")
 }
 
 WORK=$(mktemp -d /var/tmp/gradus-test.XXXXXX)
