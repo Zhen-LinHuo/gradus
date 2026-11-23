@@ -16,6 +16,7 @@
   #:use-module (gnu system)
   #:use-module (gnu system file-systems)
   #:use-module (gnu system uuid)
+  #:use-module (gnu bootloader)
   #:use-module (gradus answers)
   #:use-module (gradus render)
   #:use-module (srfi srfi-1)
@@ -84,7 +85,18 @@
        (format port "    (bootloader ~a)~%"
                (if (eq? (assq-ref boot 'bootloader) 'grub-bios)
                    "grub-bootloader" "grub-efi-bootloader"))
-       (format port "    (targets '(\"/boot/efi\"))~%")
+       (format port "    (targets '(~a))~%"
+               (string-join
+                (map (lambda (target)
+                       ;; A mount-point target only makes sense for EFI; a BIOS
+                       ;; bootloader is installed on the storage disk.
+                       (format #f "\"~a\""
+                               (if (string-prefix? "/dev/" target) target
+                                   (assq-ref (assq-ref answers 'storage)
+                                             'disk))))
+                     (bootloader-configuration-targets
+                      (operating-system-bootloader os)))
+                " "))
        (format port "    (timeout ~a)))~%" (or (assq-ref boot 'timeout) 5))
        (format port "  (file-systems~%")
        (format port "   (list~%")

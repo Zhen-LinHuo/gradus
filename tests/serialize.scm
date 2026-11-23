@@ -4,6 +4,7 @@
 ;;; This file is part of Gradus.
 
 (use-modules (srfi srfi-64)
+             (gnu bootloader)
              (gnu system)
              (gradus serialize))
 
@@ -41,6 +42,10 @@
     (length (operating-system-file-systems os)))
 
   (test-equal "one user is present" 1
-    (length (operating-system-users os))))
+    (length (operating-system-users os)))
+
+  (test-equal "the bootloader target is the storage disk, not a mount point"
+    '("/dev/vda")
+    (bootloader-configuration-targets (operating-system-bootloader os))))
 
 (exit (if (zero? (test-runner-fail-count runner)) 0 1))
