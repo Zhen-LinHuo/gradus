@@ -83,10 +83,7 @@ def main():
         print("FAIL: repository share did not mount", flush=True)
         return 1
     send("mkdir -p /mnt/target")
-    send("cd /mnt/repo && tmux new -d -s t6 "
-         "'GRADUS_RESTART_DAEMON=1 guix shell -q guix guile -- "
-         "guile -L . gradus/main.scm --answers %s --root /mnt/target "
-         "> /tmp/t6.log 2>&1'" % args.answers)
+    send("chmod +x /mnt/repo/tests/vm/t6.sh; tmux new -d -s t6 sh /mnt/repo/tests/vm/t6.sh")
     print("install started in tmux; polling", flush=True)
     deadline = time.time() + args.timeout
     while time.time() < deadline:
