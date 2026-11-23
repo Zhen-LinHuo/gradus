@@ -8,6 +8,7 @@
   #:use-module (ncurses curses)
   #:use-module (gradus answers)
   #:use-module (gradus install)
+  #:use-module (gradus storage)
   #:use-module (gradus utils)
   #:use-module (gradus wizard)
   #:use-module (ice-9 format)
@@ -145,11 +146,17 @@
         0)))
 
 (define (%disks)
-  "Block devices a human could install onto: whole disks, not loop/ram/dm."
+  "Whole disks a human could install onto.  Loop, ram and device-mapper nodes
+are not disks, and a disk that is mounted or holds the running system is
+excluded: offering it would only lead to a refused installation."
   (let ((dir (opendir "/sys/block")))
     (let loop ((found '()))
       (let ((entry (readdir dir)))
-        (cond ((eof-object? entry) (closedir dir) (reverse found))
+        (cond ((eof-object? entry)
+               (closedir dir)
+               (filter (lambda (name)
+                         (not (disk-busy? (%disk-name name))))
+                       (reverse found)))
               ((or (string-prefix? "loop" entry)
                    (string-prefix? "ram" entry)
                    (string-prefix? "zram" entry)
@@ -161,6 +168,8 @@
 
 (define (page-storage win wizard)
   (let* ((disks (%disks))
+         (_ (when (null? disks)
+              (error "no installable disk was found: every disk is in use or absent")))
          (labels (map (lambda (entry)
                         (format #f "~a  (~,1f GB)" (%disk-name entry)
                                 (%disk-size entry)))
