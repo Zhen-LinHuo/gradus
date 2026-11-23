@@ -148,7 +148,7 @@
 (define (page-install win wizard)
   (put win 3 2 (tr wizard 'installing))
   (refresh win)
-  (let ((answers (wizard-answers wizard))
+  (let ((answers (with-defaults (wizard-answers wizard)))
         (answers-file "/tmp/gradus-answers.scm")
         (root "/mnt/target"))
     (endwin)

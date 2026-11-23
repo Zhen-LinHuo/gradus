@@ -8,6 +8,8 @@
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
   #:export (%wizard-steps
+            %answer-defaults
+            with-defaults
             make-wizard
             wizard-answers
             wizard-step
@@ -24,6 +26,20 @@
 ;; A wizard is a pair: the answers collected so far, and the current step.
 ;; It is an immutable value: every transition returns a new wizard, which is
 ;; what makes the flow testable without a terminal.
+
+;; Keys the pages do not ask about.  They are part of the answer shape, so the
+;; wizard owns them rather than any one front-end.
+(define %answer-defaults
+  '((schema-version . 1)
+    (profile . "headless")
+    (host-name . "gradus")))
+
+(define (with-defaults answers)
+  "Fill in the keys the wizard does not ask about, without overriding anything
+the operator chose."
+  (append answers
+          (filter (lambda (pair) (not (assq (car pair) answers)))
+                  %answer-defaults)))
 
 (define (make-wizard)
   "A wizard at the first step, with no answers."
