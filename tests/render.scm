@@ -10,9 +10,11 @@
              (gnu system mapped-devices)
              (gnu system uuid)
              (gnu system shadow)
+             (gnu bootloader)
              (gnu services)
              (gnu services base)
-             (gradus render))
+             (gradus render)
+             (gradus wizard))
 
 (define runner (test-runner-simple))
 (test-with-runner runner
@@ -43,6 +45,14 @@
   (test-equal "the account named in the answers is rendered, plus root"
     2
     (length (operating-system-users os)))
+
+  (test-equal "the bootloader lands on the storage disk by default"
+    '("/dev/vdb")
+    (bootloader-configuration-targets
+     (operating-system-bootloader
+      (render-answers
+       (with-defaults (list (cons 'storage (storage-answers 'simple "/dev/vdb"))
+                            (cons 'users '(((name . "t") (group . "users"))))))))))
 
   (test-assert "root is always present"
     (any (lambda (u) (equal? (user-account-name u) "root"))
