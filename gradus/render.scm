@@ -16,7 +16,8 @@
   #:use-module (srfi srfi-1)
   #:export (%root-label
             %esp-label
-            render-answers))
+            render-answers
+            render-answers/devices))
 
 ;;; The labels are the contract between the storage step, which creates them
 ;;; on the target, and the declaration, which mounts by label.  They are
