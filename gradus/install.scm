@@ -14,6 +14,7 @@
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-13)
   #:use-module (ice-9 format)
+  #:use-module (guix build utils)
   #:export (mount-plan
             install-config
             install-answers
