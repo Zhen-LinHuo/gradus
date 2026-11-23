@@ -76,8 +76,8 @@ docs/* · feat/* · fix/* ──merge──▶ development ──pull request─
 - Any change to storage, boot, source or answer-file handling requires the tests
   in `docs/testing.md` that cover that area, on the release candidate; T2 and T5
   are the minimum, and T6–T8 apply when the change touches proxy, substitute
-  services or bootloader selection. T1 is required before the first public
-  release.
+  services or bootloader selection. T1-u is required before the first public
+  release; T1-i before the interactive pages are called usable.
 - Test evidence is a transcript and a diffable artefact, never a screenshot.
 - Heavy builds and VM runs happen on a dedicated build host with KVM enabled,
   never on a machine whose availability matters during the test.
