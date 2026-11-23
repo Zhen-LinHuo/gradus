@@ -8,8 +8,11 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 string-fun)
   #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-13)
+  #:use-module (ice-9 rdelim)
   #:use-module (srfi srfi-11)
-  #:export (parse-blkid
+  #:export (disk-busy?
+            parse-blkid
             read-device-map
             partition-name
             lvm-commands
@@ -65,6 +68,26 @@ in a digit (loop0, nvme0n1) use a p separator; classical names do not."
       (string-append disk "p" (number->string number))
       (string-append disk (number->string number))))
 
+(define (disk-busy? disk)
+  "Whether DISK, or any of its partitions, is mounted or holds the live medium.
+Installing onto the medium the installer is running from destroys the session
+and is always a mistake, so this is checked before anything is written."
+  (let* ((name (car (last-pair (string-split disk #\/))))
+         (mounts (call-with-input-file "/proc/mounts" (lambda (port) (read-string port))))
+         (cmdline (if (file-exists? "/proc/cmdline")
+                      (call-with-input-file "/proc/cmdline" read-string)
+                      "")))
+    (or (string-contains mounts disk)
+        (string-contains mounts (string-append "/dev/" name))
+        (string-contains cmdline (string-append "root=/dev/" name))
+        ;; A live medium booted from a device appears in /proc/cmdline as a
+        ;; label or UUID; the disk being removable is a second hint.
+        (let ((removable (format #f "/sys/block/~a/removable" name)))
+          (and (file-exists? removable)
+               (equal? (string-trim-both
+                        (call-with-input-file removable read-line))
+                       "1"))))))
+
 (define (prepare-simple answers)
   "Partition and format the target described by a `simple' storage answer,
 then return the label-keyed device map of what was created.  Data volumes are
@@ -73,6 +96,8 @@ never touched: this function only creates the system's ESP and root."
          (disk (assq-ref storage 'disk))
          (esp (partition-name disk 1))
          (root (partition-name disk 2)))
+    (when (disk-busy? disk)
+      (error "the target disk is in use and will not be written to" disk))
     (unless (zero? (run-command/stream
                     "parted" "-s" disk "mklabel" "gpt"
                     "mkpart" "ESP" "fat32" "1MiB" "513MiB"
@@ -128,9 +153,12 @@ are adopted by the declaration, never created."
 (define (prepare-lvm answers)
   "Prepare the LVM target described by ANSWERS and return its device map."
   (let* ((storage (assq-ref answers 'storage))
+         (disk (assq-ref storage 'disk))
          (vg (volume-group storage))
-         (esp (partition-name (assq-ref storage 'disk) 1))
+         (esp (partition-name disk 1))
          (root (string-append "/dev/mapper/" vg "-root")))
+    (when (disk-busy? disk)
+      (error "the target disk is in use and will not be written to" disk))
     (for-each (lambda (command)
                 (unless (zero? (apply run-command/stream command))
                   (error "storage command failed" command)))
