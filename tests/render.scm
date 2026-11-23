@@ -4,10 +4,13 @@
 ;;; This file is part of Gradus.
 
 (use-modules (srfi srfi-64)
+             (srfi srfi-1)
              (gnu system)
              (gnu system file-systems)
              (gnu system mapped-devices)
              (gnu system uuid)
+             (gnu services)
+             (gnu services base)
              (gradus render))
 
 (define runner (test-runner-simple))
@@ -90,6 +93,34 @@
            (uuid? (file-system-device (car volumes))))))
 
   (test-end "assembled storage")
+
+  (test-begin "sources and proxy")
+
+  (define sourced
+    (append (copy-tree answers)
+            '((proxy (http . "http://proxy.example.net:3128")
+                     (https . "http://proxy.example.net:3128")
+                     (no-proxy . ("cache.example.net")))
+              (source (substitute-services
+                       ((name . "lan-cache")
+                        (url . "http://cache.example.net")
+                        (kind . builder)))))))
+
+  (define guix-conf
+    (service-value
+     (find (lambda (service) (eq? (service-kind service) guix-service-type))
+           (operating-system-services (render-answers sourced)))))
+
+  (test-equal "the substitute URL reaches the guix service"
+    '("http://cache.example.net")
+    (guix-configuration-substitute-urls guix-conf))
+
+  (test-assert "the proxy reaches the daemon environment"
+    (let ((env (guix-configuration-environment guix-conf)))
+      (and (member "http_proxy=http://proxy.example.net:3128" env)
+           (member "no_proxy=cache.example.net" env))))
+
+  (test-end "sources and proxy")
 
   (test-assert "storage modes other than simple are refused"
     (catch #t

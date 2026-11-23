@@ -11,7 +11,10 @@
   #:use-module (gnu system file-systems)
   #:use-module (gnu system mapped-devices)
   #:use-module (gnu system uuid)
+  #:use-module (gnu services)
+  #:use-module (gnu services base)
   #:use-module (gnu services ssh)
+  #:use-module (ice-9 string-fun)
   #:use-module (gradus answers)
   #:use-module (srfi srfi-1)
   #:export (%root-label
@@ -163,6 +166,58 @@ A volume names its device as uuid:STRING (preferred) or label:STRING."
          (create-mount-point? #t))))
    (or (assq-ref storage 'data-volumes) '())))
 
+(define (substitute-service-list answers)
+  "The substitute services declared in the answers, or the empty list."
+  (or (assq-ref (assq-ref answers 'source) 'substitute-services) '()))
+
+(define (substitute-urls answers)
+  "The ordered substitute URLs from the answers."
+  (filter-map (lambda (service) (assq-ref service 'url))
+              (substitute-service-list answers)))
+
+(define (authorized-keys answers)
+  "The signing-key files from the answers, as file-like objects.  A mirror of
+official store paths needs none; an independent builder does."
+  (filter-map (lambda (service)
+                (let ((key (assq-ref service 'key)))
+                  (and key (local-file key))))
+              (substitute-service-list answers)))
+
+(define (proxy-environment answers)
+  "The daemon environment entries for the proxy in the answers.  The Guix
+daemon honours http_proxy, https_proxy and no_proxy, and a local cache must be
+reachable directly, hence the explicit no_proxy list."
+  (let ((proxy (assq-ref answers 'proxy)))
+    (if proxy
+        (filter-map
+         (lambda (entry)
+           (let ((name (car entry)) (value (cdr entry)))
+             (and value (string-append name "=" value))))
+         `(("http_proxy" . ,(assq-ref proxy 'http))
+           ("https_proxy" . ,(assq-ref proxy 'https))
+           ("no_proxy" . ,(and=> (assq-ref proxy 'no-proxy)
+                                 (lambda (hosts)
+                                   (string-join hosts ","))))))
+        '())))
+
+(define (guix-service-for answers)
+  "The guix-service-type modification that carries the answers' sources and
+proxy into the installed system."
+  (let ((urls (substitute-urls answers))
+        (keys (authorized-keys answers))
+        (environment (proxy-environment answers)))
+    (lambda (config)
+      (guix-configuration
+       (inherit config)
+       (substitute-urls (if (null? urls)
+                            (guix-configuration-substitute-urls config)
+                            urls))
+       (authorized-keys (if (null? keys)
+                            (guix-configuration-authorized-keys config)
+                            keys))
+       (environment (append environment
+                            (guix-configuration-environment config)))))))
+
 (define (render-answers/devices answers device-map)
   "Render a validated answer form into an operating-system declaration.
 DEVICE-MAP is the label-keyed map returned by the storage step; labels for
@@ -185,7 +240,9 @@ plain record: nothing is installed by this procedure."
                             (data-volume-file-systems storage)))
       (services
        (cons* (service openssh-service-type)
-              %base-services))
+              (modify-services %base-services
+                (guix-service-type config =>
+                                   ((guix-service-for answers) config)))))
       (users (answer-users users)))))
 
 (define (render-answers answers)
