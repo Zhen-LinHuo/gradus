@@ -7,6 +7,11 @@
  (proxy (http . "http://10.0.2.2:3128")
         (https . "http://10.0.2.2:3128")
         (no-proxy . ("localhost" "127.0.0.1")))
+ (source
+  (substitute-services
+   ((name . "fleet-cache")
+    (url . "https://cache.example.net/guix")
+    (kind . mirror))))
  (storage (mode . simple) (disk . "/dev/vda"))
  (boot (bootloader . grub-efi) (timeout . 5))
  (users ((name . "tester") (group . "users"))))

@@ -13,8 +13,9 @@
   #:use-module (gradus utils)
   #:use-module (guix build utils)
   #:use-module (ice-9 format)
-  #:use-module (ice-9 match)
+  #:use-module (ice-9 string-fun)
   #:use-module (srfi srfi-1)
+  #:use-module (ice-9 match)
   #:export (main
             parse-arguments
             absolute-path
@@ -157,11 +158,23 @@ in: stopping the daemon interrupts any other build on the machine."
           (unless (zero? (run-command/stream "herd" "stop" "guix-daemon"))
             (log-line "could not stop guix-daemon")
             (exit +exit-install+))
-          (unless (zero? (run-command/stream
-                          "sh" "-c"
-                          "guix-daemon --build-users-group=guixbuild >/var/log/gradus-daemon.log 2>&1 &"))
-            (log-line "could not start guix-daemon")
-            (exit +exit-install+))
+          (let* ((urls (filter-map
+                        (lambda (service) (assq-ref service 'url))
+                        (or (assq-ref (assq-ref answers 'source)
+                                      'substitute-services)
+                            '())))
+                 (url-option (if (pair? urls)
+                                 (string-append " --substitute-urls='"
+                                                (string-join urls " ") "'")
+                                 "")))
+            (unless (zero? (run-command/stream
+                            "sh" "-c"
+                            (string-append
+                             "guix-daemon --build-users-group=guixbuild"
+                             url-option
+                             " >/var/log/gradus-daemon.log 2>&1 &")))
+              (log-line "could not start guix-daemon")
+              (exit +exit-install+)))
           (unless (wait-for-daemon-socket 20)
             (log-line "the daemon socket did not appear; restore it with 'herd start guix-daemon'")
             (exit +exit-install+))))))
