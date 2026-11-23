@@ -9,6 +9,8 @@
   #:use-module (gnu packages linux)
   #:use-module (gnu system)
   #:use-module (gnu system file-systems)
+  #:use-module (gnu system mapped-devices)
+  #:use-module (gnu system uuid)
   #:use-module (gnu services ssh)
   #:use-module (gradus answers)
   #:use-module (srfi srfi-1)
@@ -62,13 +64,12 @@ caller when the answers name it."
 (define (uuid-type-for fs-type)
   "Map a file-system type name onto the UUID type that `string->uuid'
 understands."
-  (match fs-type
-    ("vfat" 'fat)
-    ("ext2" 'ext2)
-    ("ext3" 'ext3)
-    ("ext4" 'ext4)
-    ("btrfs" 'btrfs)
-    (_ 'dce)))
+  (cond ((string=? fs-type "vfat") 'fat)
+        ((string=? fs-type "ext2") 'ext2)
+        ((string=? fs-type "ext3") 'ext3)
+        ((string=? fs-type "ext4") 'ext4)
+        ((string=? fs-type "btrfs") 'btrfs)
+        (else 'dce)))
 
 (define (file-system-by-label label type device-map)
   "Return the device for LABEL: a UUID object when DEVICE-MAP has read one
@@ -96,6 +97,71 @@ system partition, addressed by UUID when the map knows it, by label otherwise."
           (device (file-system-by-label %esp-label "vfat" device-map))
           (type "vfat"))))
 
+(define (render-assemble answers)
+  "Translate the `assemble' section into mapped-device records.  Every entry
+names the assembly by its own name and source; member disks are identified at
+disk level by the caller.  mdadm arrays are not implemented yet: Guix has no
+native declarative mdadm assembly, and the honest answer until one exists is
+an explicit error."
+  (map
+   (lambda (entry)
+     (let ((kind (assq-ref entry 'kind))
+           (source (assq-ref entry 'source))
+           (target (assq-ref entry 'target)))
+       (unless (and source target)
+         (answers-error "assemble entries need a source and a target"))
+       (cond ((eq? kind 'luks)
+              (mapped-device
+               (source source)
+               (targets (list target))
+               (type luks-device-mapping)))
+             ((eq? kind 'lvm)
+              (mapped-device
+               (source source)
+               (targets (list target))
+               (type lvm-device-mapping)))
+             ((eq? kind 'md)
+              (answers-error "mdadm assembly is not implemented yet; use btrfs RAID or wait for a declarative mdadm service"))
+             (else
+              (answers-error (format #f "unknown assembly kind: ~a" kind))))))
+   (or (assq-ref answers 'assemble) '())))
+
+(define (data-volume-device spec fs-type)
+  "Turn a data-volume device specification into a file-system device.  The
+spec is `uuid:STRING' or `label:STRING'; a UUID is preferred because a label
+survives reformatting and a UUID does not."
+  (cond ((string-prefix? "uuid:" spec)
+         (let* ((uuid-string (string-drop spec 5))
+                (uuid-type (uuid-type-for fs-type))
+                (bv (string->uuid uuid-string uuid-type)))
+           (if bv
+               (bytevector->uuid bv uuid-type)
+               (answers-error (format #f "invalid UUID: ~a" uuid-string)))))
+        ((string-prefix? "label:" spec)
+         (file-system-label (string-drop spec 6)))
+        (else
+         (answers-error
+          (format #f "data volumes must be addressed as uuid: or label:, not ~a"
+                  spec)))))
+
+(define (data-volume-file-systems storage)
+  "Adopt the data volumes named in STORAGE: they are mounted, never created.
+A volume names its device as uuid:STRING (preferred) or label:STRING."
+  (map
+   (lambda (volume)
+     (let* ((type (assq-ref volume 'type))
+            (mount-point (assq-ref volume 'mount-point))
+            (spec (assq-ref volume 'device)))
+       (unless (and mount-point type spec)
+         (answers-error "data volumes need a mount-point, a type and a device"))
+       (file-system
+         (mount-point mount-point)
+         (device (data-volume-device spec type))
+         (type type)
+         (needed-for-boot? #f)
+         (create-mount-point? #t))))
+   (or (assq-ref storage 'data-volumes) '())))
+
 (define (render-answers/devices answers device-map)
   "Render a validated answer form into an operating-system declaration.
 DEVICE-MAP is the label-keyed map returned by the storage step; labels for
@@ -113,7 +179,9 @@ plain record: nothing is installed by this procedure."
       (locale (or (assq-ref answers 'locale) "en_US.utf8"))
       (kernel linux-libre)
       (bootloader (boot-record boot))
-      (file-systems (simple-file-systems device-map))
+      (mapped-devices (render-assemble answers))
+      (file-systems (append (simple-file-systems device-map)
+                            (data-volume-file-systems storage)))
       (services
        (cons* (service openssh-service-type)
               %base-services))
