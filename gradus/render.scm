@@ -17,6 +17,7 @@
   #:use-module (gnu services networking)
   #:use-module (ice-9 string-fun)
   #:use-module (gradus answers)
+  #:use-module (gradus storage)
   #:use-module (srfi srfi-1)
   #:export (%root-label
             %esp-label
@@ -102,6 +103,38 @@ system partition, addressed by UUID when the map knows it, by label otherwise."
           (mount-point "/boot/efi")
           (device (file-system-by-label %esp-label "vfat" device-map))
           (type "vfat"))))
+
+(define (lvm-root-volume storage)
+  "Return the volume named root in STORAGE, or #f."
+  (find (lambda (volume) (equal? (assq-ref volume 'name) "root"))
+        (or (assq-ref storage 'volumes) '())))
+
+(define (lvm-file-systems storage device-map)
+  "The file systems for `lvm' storage mode: the ESP on the disk, and one ext4
+root inside the volume group.  Both are addressed by UUID once the storage step
+has read them back."
+  (let ((label (or (let ((root (lvm-root-volume storage)))
+                     (and root (assq-ref root 'label)))
+                   %root-label)))
+    (list (file-system
+            (mount-point "/")
+            (device (file-system-by-label label "ext4" device-map))
+            (type "ext4"))
+          (file-system
+            (mount-point "/boot/efi")
+            (device (file-system-by-label %esp-label "vfat" device-map))
+            (type "vfat")))))
+
+(define (lvm-mapped-devices storage)
+  "The volume group that holds the root volume.  Its only physical volume is
+the second partition of the target disk; data volumes are assembled separately
+and never merged into this one."
+  (let ((disk (assq-ref storage 'disk))
+        (vg (or (assq-ref storage 'volume-group) "vg0")))
+    (list (mapped-device
+            (source (list (partition-name disk 2)))
+            (targets (list vg))
+            (type lvm-device-mapping)))))
 
 (define (render-assemble answers)
   "Translate the `assemble' section into mapped-device records.  Every entry
@@ -227,18 +260,21 @@ which a UUID is known become UUID devices in the declaration.  The result is a
 plain record: nothing is installed by this procedure."
   (let ((boot (assq-ref answers 'boot))
         (storage (assq-ref answers 'storage))
-        (users (assq-ref answers 'users)))
-    (unless (eq? (assq-ref storage 'mode) 'simple)
-      (answers-error (format #f "storage mode not implemented: ~a"
-                             (assq-ref storage 'mode))))
+        (users (assq-ref answers 'users))
+        (mode (assq-ref (assq-ref answers 'storage) 'mode)))
+    (unless (memq mode '(simple lvm))
+      (answers-error (format #f "storage mode not implemented: ~a" mode)))
     (operating-system
       (host-name (or (assq-ref answers 'host-name) "gradus"))
       (timezone (or (assq-ref answers 'timezone) "UTC"))
       (locale (or (assq-ref answers 'locale) "en_US.utf8"))
       (kernel linux-libre)
       (bootloader (boot-record boot))
-      (mapped-devices (render-assemble answers))
-      (file-systems (append (simple-file-systems device-map)
+      (mapped-devices (append (if (eq? mode 'lvm) (lvm-mapped-devices storage) '())
+                              (render-assemble answers)))
+      (file-systems (append (if (eq? mode 'lvm)
+                                (lvm-file-systems storage device-map)
+                                (simple-file-systems device-map))
                             (data-volume-file-systems storage)))
       (services
        (cons* (service openssh-service-type)

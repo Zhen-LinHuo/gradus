@@ -12,6 +12,7 @@
   #:export (parse-blkid
             read-device-map
             partition-name
+            lvm-commands
             prepare-target))
 
 (define (parse-blkid text)
@@ -53,7 +54,7 @@ in a digit (loop0, nvme0n1) use a p separator; classical names do not."
       (string-append disk "p" (number->string number))
       (string-append disk (number->string number))))
 
-(define (prepare-target answers)
+(define (prepare-simple answers)
   "Partition and format the target described by a `simple' storage answer,
 then return the label-keyed device map of what was created.  Data volumes are
 never touched: this function only creates the system's ESP and root."
@@ -61,8 +62,6 @@ never touched: this function only creates the system's ESP and root."
          (disk (assq-ref storage 'disk))
          (esp (partition-name disk 1))
          (root (partition-name disk 2)))
-    (unless (eq? (assq-ref storage 'mode) 'simple)
-      (error "prepare-target only implements the simple storage mode"))
     (unless (zero? (run-command/stream
                     "parted" "-s" disk "mklabel" "gpt"
                     "mkpart" "ESP" "fat32" "1MiB" "513MiB"
@@ -77,3 +76,62 @@ never touched: this function only creates the system's ESP and root."
                                        "-L" "gradus-root" root))
       (error "mkfs.ext4 failed" root))
     (read-device-map (list esp root))))
+
+(define (volume-group storage)
+  "Return the volume group named by STORAGE, defaulting to \"vg0\"."
+  (or (assq-ref storage 'volume-group) "vg0"))
+
+(define (lvm-commands storage)
+  "Return the list of commands that prepare an LVM target described by STORAGE.
+The disk gets an ESP and one physical-volume partition; the root volume is
+formatted inside the volume group.  Nothing here touches a data volume: those
+are adopted by the declaration, never created."
+  (let* ((disk (assq-ref storage 'disk))
+         (vg (volume-group storage))
+         (esp (partition-name disk 1))
+         (pv (partition-name disk 2))
+         (volumes (or (assq-ref storage 'volumes) '()))
+         (root (or (find (lambda (v) (equal? (assq-ref v 'name) "root")) volumes)
+                   (error "an LVM target needs a volume named root"))))
+    (append
+     (list (list "parted" "-s" disk "mklabel" "gpt"
+                 "mkpart" "ESP" "fat32" "1MiB" "513MiB"
+                 "set" "1" "esp" "on"
+                 "mkpart" "pv" "ext4" "513MiB" "100%"
+                 "set" "2" "lvm" "on")
+           (list "partprobe" disk)
+           (list "udevadm" "settle")
+           (list "mkfs.vfat" "-n" "GRADUS-ESP" esp)
+           (list "pvcreate" "-y" pv)
+           (list "vgcreate" vg pv))
+     (map (lambda (volume)
+            (list "lvcreate" "-y" "-n" (assq-ref volume 'name)
+                  "-L" (or (assq-ref volume 'size) "100%FREE") vg))
+          (remove (lambda (v) (equal? (assq-ref v 'name) "root")) volumes))
+     (list (list "lvcreate" "-y" "-n" "root"
+                 "-l" "100%FREE" vg)
+           (list (string-append "mkfs." (or (assq-ref root 'type) "ext4"))
+                 "-L" (or (assq-ref root 'label) "gradus-root")
+                 (string-append "/dev/mapper/" vg "-root"))))))
+
+(define (prepare-lvm answers)
+  "Prepare the LVM target described by ANSWERS and return its device map."
+  (let* ((storage (assq-ref answers 'storage))
+         (vg (volume-group storage))
+         (esp (partition-name (assq-ref storage 'disk) 1))
+         (root (string-append "/dev/mapper/" vg "-root")))
+    (for-each (lambda (command)
+                (unless (zero? (apply run-command/stream command))
+                  (error "storage command failed" command)))
+              (lvm-commands storage))
+    (read-device-map (list esp root))))
+
+(define (prepare-target answers)
+  "Prepare the target described by ANSWERS and return its device map.  The
+storage mode decides how the target is laid out; data volumes are adopted, not
+created."
+  (let ((mode (assq-ref (assq-ref answers 'storage) 'mode)))
+    (cond
+     ((eq? mode 'simple) (prepare-simple answers))
+     ((eq? mode 'lvm) (prepare-lvm answers))
+     (else (error "unsupported storage mode" mode)))))

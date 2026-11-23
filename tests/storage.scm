@@ -34,6 +34,33 @@
           (assq-ref (assoc-ref parsed "gradus-root") 'uuid)))
 
   (test-equal "unlabelled devices are skipped"
-    0 (length (parse-blkid "DEVNAME=/dev/sda1\nTYPE=ext4\n"))))
+    0 (length (parse-blkid "DEVNAME=/dev/sda1\nTYPE=ext4\n")))
+
+  (define lvm-answer
+    '((disk . "/dev/vda")
+      (volume-group . "vg0")
+      (volumes ((name . "root") (size . "100%FREE")))))
+
+  (define commands (lvm-commands lvm-answer))
+
+  (test-equal "the physical volume partition is marked for LVM"
+    '("parted" "-s" "/dev/vda" "mklabel" "gpt"
+      "mkpart" "ESP" "fat32" "1MiB" "513MiB"
+      "set" "1" "esp" "on"
+      "mkpart" "pv" "ext4" "513MiB" "100%"
+      "set" "2" "lvm" "on")
+    (list-ref commands 0))
+
+  (test-equal "the volume group is created on the second partition"
+    '("vgcreate" "vg0" "/dev/vda2")
+    (list-ref commands 5))
+
+  (test-equal "the root volume takes the remaining space"
+    '("lvcreate" "-y" "-n" "root" "-l" "100%FREE" "vg0")
+    (list-ref commands 6))
+
+  (test-equal "the root volume is formatted by label"
+    '("mkfs.ext4" "-L" "gradus-root" "/dev/mapper/vg0-root")
+    (list-ref commands 7)))
 
 (exit (if (zero? (test-runner-fail-count runner)) 0 1))
