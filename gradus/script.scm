@@ -34,15 +34,16 @@ argument must be made absolute before it is loaded."
 
 (define (usage)
   "Print the command synopsis."
-  (format #t "Usage: gradus --config FILE [--root DIR] [--dry-run]~%~
-              ~10@*gradus --version~%~
-              ~10@*gradus --help~%~
-~%Options:~%~
-  --config FILE   install this operating-system declaration~%~
-  --root DIR      mount point for the target (default: /mnt)~%~
-  --dry-run       check and print the plan; write nothing~%~
-  --log FILE      also write the transcript to FILE~%~
-  --version       print the product and contract versions~%~
+  (format #t "Usage: gradus --config FILE [--root DIR] [--dry-run]~%~\
+              gradus --answers FILE [--root DIR] [--dry-run]~%~\
+              gradus --version~%\
+              gradus --help~%~%Options:~%~\
+  --config FILE   install this operating-system declaration~%~\
+  --answers FILE  install from an answer file (the target disk is prepared)~%~\
+  --root DIR      mount point for the target (default: /mnt)~%~\
+  --dry-run       check and print the plan; write nothing~%~\
+  --log FILE      also write the transcript to FILE~%~\
+  --version       print the product and contract versions~%~\
   --help          print this text~%"))
 
 (define (usage-error fmt . args)

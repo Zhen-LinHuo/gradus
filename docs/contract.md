@@ -18,6 +18,15 @@ behind.
 
 ## 2. Invocation modes
 
+**Implementation status (v0.2).** Of this section, the following exist today:
+`--config FILE` and `--answers FILE`, `--root DIR` (the mount point under which
+the target's file systems are mounted; default `/mnt`), `--dry-run`, `--log`,
+`--version`.  In `--config` mode the target's file systems must already exist,
+carrying the labels or UUIDs that `FILE` names — the installer mounts them and
+does not partition.  In `--answers` mode the target disk is prepared from the
+answer file.  `--target`, `--erase`, `--proxy`, `--no-proxy` and `--yes` are
+specified but not implemented yet.
+
 | Mode | Command shape | What is required | What is written |
 |:--|:--|:--|:--|
 | Interactive | `gradus` | Nothing | Target disk, only after explicit confirmation |
