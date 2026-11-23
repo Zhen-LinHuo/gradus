@@ -14,13 +14,15 @@
   #:use-module (gnu services)
   #:use-module (gnu services base)
   #:use-module (gnu services ssh)
+  #:use-module (gnu services networking)
   #:use-module (ice-9 string-fun)
   #:use-module (gradus answers)
   #:use-module (srfi srfi-1)
   #:export (%root-label
             %esp-label
             render-answers
-            render-answers/devices))
+            render-answers/devices
+            proxy-environment))
 
 ;;; The labels are the contract between the storage step, which creates them
 ;;; on the target, and the declaration, which mounts by label.  They are
@@ -240,6 +242,7 @@ plain record: nothing is installed by this procedure."
                             (data-volume-file-systems storage)))
       (services
        (cons* (service openssh-service-type)
+              (service dhcpcd-service-type)
               (modify-services %base-services
                 (guix-service-type config =>
                                    ((guix-service-for answers) config)))))

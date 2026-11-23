@@ -23,7 +23,7 @@ prepare step."
              (current '())
              (result '()))
     (match lines
-      (() (reverse (if (null? current) result (cons current result))))
+      (() (reverse result))
       ((line . rest)
        (match (string-split line #\=)
          (("DEVNAME" value)
@@ -34,7 +34,7 @@ prepare step."
           (loop rest (acons 'uuid value current) result))
          (("LABEL" value)
           (loop rest (acons 'label value current)
-                (acons value current result)))
+                (acons value (acons 'label value current) result)))
          (_ (loop rest current result)))))))
 
 (define (read-device-map devices)

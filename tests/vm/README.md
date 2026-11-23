@@ -66,7 +66,44 @@ executable test.
 - `guix system init` downloads the full system closure; budget ten to thirty
   minutes depending on the network.
 
-## What the scripted version must add
+## The driver as it stands
+
+`drive.py` drives the serial console; `ssh-run.sh` drives the guest over SSH and
+is the route that works.  The guest image must provide `guix`, `parted`,
+`e2fsprogs`, `dosfstools` and `util-linux`; without them the installer fails at
+the first step with `execvp: No such file or directory`.
+
+```sh
+# host: start the guest with a target disk and the repository shared in
+qemu-system-x86_64 -enable-kvm -m 4096 -smp 4 \
+  -cdrom IMAGE.iso \
+  -drive file=/tmp/t6-target.img,if=virtio,format=raw \
+  -virtfs local,path=$PWD,mount_tag=repo,security_model=none \
+  -netdev user,id=n0,hostfwd=tcp::2223-:22 \
+  -device virtio-net-pci,netdev=n0 -display none -serial file:/tmp/serial.log
+
+# host: install into the guest, over SSH
+tests/vm/ssh-run.sh 2223
+```
+
+What the run taught us, in the order it bit:
+
+- **The serial console is not a good driver.**  getty's line discipline dropped
+  and reordered characters, so commands arrived mangled.  SSH is the reliable
+  channel; serial stays for diagnosis.
+- **tmux inside the guest may not fork** on a live image
+  (`create window failed: fork failed`).  `ssh-run.sh` falls back to `setsid`,
+  which gives the same property: the installation survives the session and the
+  daemon restart.
+- **Run the installer under `guix repl`, not `guix shell`.**  A shell bootstrap
+  fetches guix and guile over the direct route before the proxy is applied, so
+  the test would prove nothing and take an extra few hundred megabytes.
+- **`clean.sh` before every run.**  A failed attempt leaves the target mounted,
+  and `parted` then refuses with "Partition(s) are being used".
+- **A LAN cache belongs in `no_proxy`.**  Otherwise every substitute byte goes
+  through the proxy, which turns a minutes-long test into an hour-long one.
+
+## What is still missing
 
 - unattended boot (serial console + automated input, or a pre-seeded answer
   file fetched over the network);

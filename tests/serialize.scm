@@ -1,0 +1,46 @@
+;;; tests/serialize.scm — the generated declaration must stand on its own.
+;;; Copyright © 2026 Zhen-Lin Huo <zhen-lin.huo@gmx.com>
+;;;
+;;; This file is part of Gradus.
+
+(use-modules (srfi srfi-64)
+             (gnu system)
+             (gradus serialize))
+
+(define runner (test-runner-simple))
+(test-with-runner runner
+
+  (define answers
+    '((schema-version . 1)
+      (profile . "headless")
+      (host-name . "vm0")
+      (timezone . "UTC")
+      (locale . "en_US.utf8")
+      (storage (mode . simple) (disk . "/dev/vda"))
+      (boot (bootloader . grub-efi) (timeout . 5))
+      (users ((name . "tester") (group . "users")))))
+
+  (define device-map
+    '(("gradus-root" (device . "/dev/vda2") (type . "ext4")
+                     (uuid . "1454237d-7923-4816-827a-3064eba2b19d"))
+      ("GRADUS-ESP" (device . "/dev/vda1") (type . "vfat")
+                    (uuid . "34CB-A679"))))
+
+  (define file (string-append (or (getenv "TMPDIR") "/tmp")
+                              "/gradus-serialized.scm"))
+  (serialize-to-file file answers device-map)
+  (define os (load file))
+
+  (test-assert "the generated file is a declaration"
+    (operating-system? os))
+
+  (test-equal "the host name survives" "vm0"
+    (operating-system-host-name os))
+
+  (test-equal "both file systems are present" 2
+    (length (operating-system-file-systems os)))
+
+  (test-equal "one user is present" 1
+    (length (operating-system-users os))))
+
+(exit (if (zero? (test-runner-fail-count runner)) 0 1))

@@ -1,0 +1,17 @@
+;;; T6 answers: install into /dev/vdb through the host proxy at 10.0.2.2:3128.
+((schema-version . 1)
+ (profile . "headless")
+ (host-name . "gradus-t6-target")
+ (timezone . "UTC")
+ (locale . "en_US.utf8")
+ (proxy (http . "http://10.0.2.2:3128")
+        (https . "http://10.0.2.2:3128")
+        (no-proxy . ("localhost" "127.0.0.1")))
+ (source
+  (substitute-services
+   ((name . "fleet-cache")
+    (url . "https://cache.example.net/guix")
+    (kind . mirror))))
+ (storage (mode . simple) (disk . "/dev/vda"))
+ (boot (bootloader . grub-efi) (timeout . 5))
+ (users ((name . "tester") (group . "users"))))
