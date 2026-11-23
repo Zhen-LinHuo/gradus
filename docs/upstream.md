@@ -28,6 +28,28 @@ offered upstream before this project grows its own versions of them.
 - Provenance artefacts on the target.
 - The release process, the VM matrix and the acceptance tests.
 
+## Channels, and the nonguix question
+
+A channel that ships non-free software (nonguix is the usual one) is a
+legitimate thing for an *operator* to choose and a thing the Guix project will
+never ship itself.  The boundary that keeps both true:
+
+- **The installer is channel-agnostic.** Its source step accepts a list of
+  channels — name, URL, commit — and nothing in the code knows what nonguix is.
+  That mechanism is generic and upstreamable.
+- **The nonguix profile is data, not a code path.** It lives with the other
+  presets as a starting configuration, discloses that it adds non-free software
+  and changes the kernel, and is never selected by default.
+- **Never in an upstream patch.** A patch that mentions nonguix by name would be
+  rejected, correctly.  Patches carry the generic channel mechanism only; the
+  preset stays in this repository.
+- **The review step shows the channel list.** An operator who ends up with a
+  non-free kernel should be able to see the line that put it there.
+
+This also answers the practical objection: people install nonguix anyway, by
+hand, after the installer has finished.  Offering it as a disclosed preset is
+more honest than leaving them to copy snippets from a wiki.
+
 ## Rules for patches
 
 1. **No private identifiers.** A patch containing a hostname, a domain, a
