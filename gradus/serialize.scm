@@ -35,11 +35,15 @@
   (let ((device (file-system-device fs)))
     (format port "    (file-system~%")
     (format port "      (mount-point ~s)~%" (file-system-mount-point fs))
-    (if (uuid? device)
-        (format port "      (device (uuid ~s '~a))~%"
-                (uuid->string device) (uuid-type device))
-        (format port "      (device ~s)~%"
-                (file-system-device->string device)))
+    (cond ((uuid? device)
+           (format port "      (device (uuid ~s '~a))~%"
+                   (uuid->string device) (uuid-type device)))
+          ((file-system-label? device)
+           (format port "      (device (file-system-label ~s))~%"
+                   (file-system-label->string device)))
+          (else
+           (format port "      (device ~s)~%"
+                   (file-system-device->string device))))
     (format port "      (type ~s))~%" (file-system-type fs))))
 
 (define (emit-services port answers)
