@@ -65,6 +65,20 @@
 
   (test-end "file-system-source")
 
+  (test-begin "proxy environment")
+
+  (apply-proxy-environment
+   '((proxy (http . "http://proxy.example.net:3128")
+            (https . "http://proxy.example.net:3128")
+            (no-proxy . ("localhost" "cache.example.net")))))
+
+  (test-equal "http_proxy is set" "http://proxy.example.net:3128"
+    (getenv "http_proxy"))
+  (test-equal "no_proxy joins the list" "localhost,cache.example.net"
+    (getenv "no_proxy"))
+
+  (test-end "proxy environment")
+
   (test-begin "ordering")
 
   (let* ((ordered (map file-system-mount-point

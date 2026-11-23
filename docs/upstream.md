@@ -28,6 +28,27 @@ offered upstream before this project grows its own versions of them.
 - Provenance artefacts on the target.
 - The release process, the VM matrix and the acceptance tests.
 
+## Channels, and the nonguix question
+
+A channel that ships non-free software (nonguix is the usual one) is a
+legitimate thing for an *operator* to choose and a thing the Guix project will
+never ship itself.  This repository takes the middle position:
+
+- **The installer is channel-agnostic, and that is all it does.** Its source
+  step accepts a list of channels — name, URL, commit — and nothing in the code
+  knows what nonguix is.  The same list is how a distribution mirror, a
+  company channel or a personal channel is declared.
+- **No preset for non-free software lives here.** Not as a shortcut, not as an
+  example, not in a comment.  Concrete channels belong to the configuration
+  repository that an operator or a fleet maintains, where the disclosure and the
+  signing keys can be kept next to the machines they apply to.
+- **Upstream patches carry the generic mechanism only.** A patch that mentions
+  nonguix by name would be rejected, correctly.
+
+This keeps the boundary clean in both directions: the installer ships no
+non-free policy, and an operator who wants a non-free channel has a supported,
+generic way to declare one without patching the installer.
+
 ## Rules for patches
 
 1. **No private identifiers.** A patch containing a hostname, a domain, a

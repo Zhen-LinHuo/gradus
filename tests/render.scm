@@ -4,8 +4,13 @@
 ;;; This file is part of Gradus.
 
 (use-modules (srfi srfi-64)
+             (srfi srfi-1)
              (gnu system)
              (gnu system file-systems)
+             (gnu system mapped-devices)
+             (gnu system uuid)
+             (gnu services)
+             (gnu services base)
              (gradus render))
 
 (define runner (test-runner-simple))
@@ -43,6 +48,79 @@
     (map (lambda (fs)
            (file-system-device->string (file-system-device fs)))
          (operating-system-file-systems os)))
+
+  (test-begin "assembled storage")
+
+  (define nas-answers
+    (append answers
+            '((assemble ((kind . lvm)
+                         (source . "/dev/mapper/cryptdata")
+                         (target . "/dev/mapper/vg0"))))))
+
+  (test-equal "an assemble entry becomes a mapped device"
+    1
+    (length (operating-system-mapped-devices (render-answers nas-answers))))
+
+  (test-equal "the mapped device keeps its source"
+    "/dev/mapper/cryptdata"
+    (mapped-device-source
+     (car (operating-system-mapped-devices (render-answers nas-answers)))))
+
+  (test-assert "mdadm assembly is refused until implemented"
+    (catch #t
+      (lambda ()
+        (render-answers
+         (append answers
+                 '((assemble ((kind . md)
+                              (source . "/dev/disk/by-id/wwn-x")
+                              (target . "/dev/md0"))))))
+        #f)
+      (lambda args #t)))
+
+  (test-assert "a data volume is adopted by its file-system UUID"
+    (let* ((nas (with-key 'storage
+                          '((mode . simple)
+                            (disk . "/dev/vda")
+                            (data-volumes ((mount-point . "/srv/data")
+                                           (device . "uuid:1454237d-7923-4816-827a-3064eba2b19d")
+                                           (type . "ext4"))))))
+           (volumes (filter (lambda (fs)
+                              (string=? "/srv/data"
+                                        (file-system-mount-point fs)))
+                            (operating-system-file-systems
+                             (render-answers nas)))))
+      (and (= 1 (length volumes))
+           (uuid? (file-system-device (car volumes))))))
+
+  (test-end "assembled storage")
+
+  (test-begin "sources and proxy")
+
+  (define sourced
+    (append (copy-tree answers)
+            '((proxy (http . "http://proxy.example.net:3128")
+                     (https . "http://proxy.example.net:3128")
+                     (no-proxy . ("cache.example.net")))
+              (source (substitute-services
+                       ((name . "lan-cache")
+                        (url . "http://cache.example.net")
+                        (kind . builder)))))))
+
+  (define guix-conf
+    (service-value
+     (find (lambda (service) (eq? (service-kind service) guix-service-type))
+           (operating-system-services (render-answers sourced)))))
+
+  (test-equal "the substitute URL reaches the guix service"
+    '("http://cache.example.net")
+    (guix-configuration-substitute-urls guix-conf))
+
+  (test-assert "the proxy reaches the daemon environment"
+    (let ((env (guix-configuration-environment guix-conf)))
+      (and (member "http_proxy=http://proxy.example.net:3128" env)
+           (member "no_proxy=cache.example.net" env))))
+
+  (test-end "sources and proxy")
 
   (test-assert "storage modes other than simple are refused"
     (catch #t
