@@ -135,17 +135,28 @@ that evaluates it, and pages can still be offered upstream.
 
 ## Roadmap
 
-- [ ] v0.1 — `--config` mode: mount a prepared target, install a given
-      `operating-system`, keep provenance. No partitioning yet.
-- [ ] v0.2 — storage page and `--erase`: partitioning, LVM, LUKS, preservation
-      of existing data volumes.
-- [ ] v0.3 — source page: channels, substitute services (`official`, `mirror`,
-      `builder`, including a self-hosted `guix publish` cache), signing-key
-      import, and proxy settings applied both to the live environment and to the
-      target's `guix-configuration`.
-- [ ] v0.4 — boot page: bootloader (including `none`), target, kernel choice,
-      extra kernel arguments, menu policy, NVRAM handling, serial console.
-- [ ] v0.5 — software and user pages; unattended `--answers`.
+The installer has one core — the page flow and the answer file it produces —
+and several front-ends over it.  Which front-end matters depends on the
+machine: a desktop gets a graphical installation; a router or a NAS usually has
+no display output at all, so for those the order of preference is unattended
+installation, then remote installation, and only then a console.
+
+- [x] v0.1 — `--config` mode: mount a prepared target, install a given
+      `operating-system`, keep provenance.
+- [x] v0.2 — storage: `simple` and `lvm` targets prepared and declared; data
+      volumes adopted, never created.
+- [ ] v0.3 — **installer core and TUI**: the page flow (language, source with
+      proxy/mirror/self-hosted cache, storage, users, review, install) driven
+      by one core, with a console front-end that also works over a serial line
+      (the only front-end a board without display output can always fall back
+      to).  Interface language includes Simplified Chinese.
+- [ ] v0.4 — **ISO integration and unattended installs**: the wizard boots
+      straight from the official-style ISO; `--target`, `--erase`, `--yes` and
+      the boot page land, making the answer file the unattended path for
+      headless machines.
+- [ ] v0.5 — **Web front-end**: a graphical installation for desktops, and
+      remote installation for headless machines, served by the same core (the
+      Agama shape: one service, front-ends as clients).
 - [ ] v0.6 — arm64 and RISC-V targets.
 
 ## Non-goals
