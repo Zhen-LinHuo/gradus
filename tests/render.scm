@@ -122,11 +122,31 @@
 
   (test-end "sources and proxy")
 
-  (test-assert "storage modes other than simple are refused"
+  (test-assert "an lvm target declares a volume group"
+    (let* ((os (render-answers
+                (with-key 'storage '((mode . lvm) (disk . "/dev/vda")
+                                     (volume-group . "vg0")
+                                     (volumes ((name . "root")
+                                               (size . "100%FREE")))))))
+           (devices (operating-system-mapped-devices os)))
+      (and (= 1 (length devices))
+           (equal? '("vg0") (mapped-device-targets (car devices))))))
+
+  (test-equal "an lvm target keeps the root inside the volume group"
+    '("/" "/boot/efi")
+    (map file-system-mount-point
+         (operating-system-file-systems
+          (render-answers
+           (with-key 'storage '((mode . lvm) (disk . "/dev/vda")
+                                (volume-group . "vg0")
+                                (volumes ((name . "root")
+                                          (size . "100%FREE")))))))))
+
+  (test-assert "storage modes other than simple and lvm are refused"
     (catch #t
       (lambda ()
         (render-answers (with-key 'storage
-                                 '((mode . lvm) (disk . "/dev/vda"))))
+                                 '((mode . raid) (disk . "/dev/vda"))))
         #f)
       (lambda args #t)))
 
