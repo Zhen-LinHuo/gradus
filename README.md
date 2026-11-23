@@ -29,19 +29,26 @@ Gradus is not packaged yet; you run it straight from a clone. You need Guix
 ```sh
 git clone https://github.com/Zhen-LinHuo/gradus && cd gradus
 
+# The interactive installer (needs guile-ncurses; in a live environment you are
+# already root, on a foreign distribution use sudo for the write to the disk):
+guix shell -q guix guile guile-ncurses -- ./bin/gradus --tui
+
 # See what an install would do, touching nothing:
-guix shell -q guix guile -- guile -L . gradus/script.scm \
+guix shell -q guix guile -- ./bin/gradus \
     --config my-config.scm --root /mnt/target --dry-run
 
 # Install (the target's file systems must already exist, with the labels or
 # UUIDs your config names; --config mode does not partition):
-sudo guix shell -q guix guile -- guile -L . gradus/script.scm \
+guix shell -q guix guile -- sudo ./bin/gradus \
     --config my-config.scm --root /mnt/target
 
 # Or let an answer file describe the target, including its disk layout:
-sudo guix shell -q guix guile -- guile -L . gradus/script.scm \
+guix shell -q guix guile -- sudo ./bin/gradus \
     --answers my-answers.scm --root /mnt/target
 ```
+
+`bin/gradus` is a two-line shell launcher; nothing needs to know how Guile
+takes its arguments.
 
 After a successful run, the target carries `/etc/config.scm` (the declaration
 that was installed) and `/etc/gradus/provenance.scm` (which installer, contract
