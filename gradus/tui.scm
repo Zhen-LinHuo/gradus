@@ -47,7 +47,7 @@
 
 (define (tr wizard key)
   "The string for KEY in the language the wizard has chosen."
-  (let* ((lang (or (assq-ref (wizard-answers wizard) 'ui-language) 0))
+  (let* ((lang (wizard-language wizard))
          (table (list-ref %strings (min lang (- (length %strings) 1)))))
     (assq-ref table key)))
 
@@ -111,7 +111,7 @@
   (put win 9 2 "> ")
   (refresh win)
   (getnstr win 8)
-  (wizard-next (wizard-set wizard 'ui-language 1)))
+  (wizard-next (wizard-set-language wizard 1)))
 
 (define (page-source win wizard)
   (let* ((url (ask wizard win 3 (tr wizard 'substitute)
