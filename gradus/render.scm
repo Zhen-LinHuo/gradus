@@ -20,7 +20,8 @@
   #:export (%root-label
             %esp-label
             render-answers
-            render-answers/devices))
+            render-answers/devices
+            proxy-environment))
 
 ;;; The labels are the contract between the storage step, which creates them
 ;;; on the target, and the declaration, which mounts by label.  They are
