@@ -36,6 +36,16 @@
   (test-equal "unlabelled devices are skipped"
     0 (length (parse-blkid "DEVNAME=/dev/sda1\nTYPE=ext4\n")))
 
+  (test-equal "field order inside a device block does not matter"
+    '("ext4" "3cfb4b88-95d2-427d-a420-483f9122a96a")
+    (let ((parsed (parse-blkid
+                   (string-append "DEVNAME=/dev/dm-0\n"
+                                  "LABEL=gradus-root\n"
+                                  "TYPE=ext4\n"
+                                  "UUID=3cfb4b88-95d2-427d-a420-483f9122a96a\n"))))
+      (list (assq-ref (assoc-ref parsed "gradus-root") 'type)
+            (assq-ref (assoc-ref parsed "gradus-root") 'uuid))))
+
   (define lvm-answer
     '((disk . "/dev/vda")
       (volume-group . "vg0")
