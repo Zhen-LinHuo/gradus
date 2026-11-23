@@ -12,6 +12,8 @@
   #:use-module (gradus config)
   #:use-module (gradus provenance)
   #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-13)
+  #:use-module (ice-9 format)
   #:export (mount-plan
             install-config
             install-answers
@@ -62,6 +64,25 @@ success; raise on the first failure."
       (exit +exit-install+))
     (write-provenance root config-file "config")
     (log-line "installed; declaration kept at ~a/etc/config.scm" root)))
+
+(define (substitute-urls answers)
+  "The substitute URLs declared in ANSWERS, in the order written."
+  (filter-map (lambda (service) (assq-ref service 'url))
+              (or (assq-ref (assq-ref answers 'source) 'substitute-services) '())))
+
+(define (authorize-declared-keys answers)
+  "Authorise the signing keys the answers name, when they are readable.  A
+failure is reported, not fatal: an unauthorised builder simply will not be
+used, and the installation falls back to the sources it can trust."
+  (for-each
+   (lambda (service)
+     (let ((key (assq-ref service 'key)))
+       (when (and key (file-exists? key))
+         (unless (zero? (run-command/stream
+                         "sh" "-c"
+                         (format #f "guix archive --authorize < ~a" key)))
+           (log-line "could not authorise ~a; its substitutes will be refused" key)))))
+   (or (assq-ref (assq-ref answers 'source) 'substitute-services) '())))
 
 (define (apply-proxy-environment answers)
   "Put the proxy from the answers into this process's environment: channel
@@ -146,10 +167,19 @@ ANSWERS-FILE is where the answers are (or will be) recorded for provenance."
       (lambda (key . args)
         (log-line "cannot prepare the target: ~a" args)
         (exit +exit-target+)))
+    (authorize-declared-keys answers)
     (log-line "installing")
-    (unless (zero? (run-command/stream "guix" "system" "init"
-                                       declaration root))
-      (exit +exit-install+))
+    (let* ((urls (substitute-urls answers))
+           (options (if (null? urls) '()
+                        (list (string-append "--substitute-urls="
+                                             (string-join urls " "))))))
+      (when (pair? urls)
+        (log-line "substitutes: ~a" (string-join urls " ")))
+      (unless (zero? (apply run-command/stream
+                            (append (list "guix" "system" "init")
+                                    options
+                                    (list declaration root))))
+        (exit +exit-install+)))
     (write-provenance root declaration "answers")
     (log-line "installed; declaration kept at ~a/etc/config.scm" root)))
 
