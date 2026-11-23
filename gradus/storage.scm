@@ -6,7 +6,9 @@
 (define-module (gradus storage)
   #:use-module (gradus utils)
   #:use-module (ice-9 match)
+  #:use-module (ice-9 string-fun)
   #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-11)
   #:export (parse-blkid
             read-device-map
             partition-name
