@@ -110,17 +110,22 @@ map is keyed by label strings, so the lookup is by `assoc-ref'."
               (file-system-label label)))
         (file-system-label label))))
 
-(define (simple-file-systems device-map)
-  "The file systems for `simple' storage mode: one ext4 root and one EFI
-system partition, addressed by UUID when the map knows it, by label otherwise."
-  (list (file-system
-          (mount-point "/")
-          (device (file-system-by-label %root-label "ext4" device-map))
-          (type "ext4"))
-        (file-system
-          (mount-point "/boot/efi")
-          (device (file-system-by-label %esp-label "vfat" device-map))
-          (type "vfat"))))
+(define (simple-file-systems device-map efi?)
+  "The file systems for `simple' storage mode: one ext4 root, plus an EFI
+system partition on an EFI machine.  A BIOS machine has a BIOS Boot partition
+instead, which carries no file system and is not mounted.  Devices are
+addressed by UUID when the map knows them, by label otherwise."
+  (append
+   (list (file-system
+           (mount-point "/")
+           (device (file-system-by-label %root-label "ext4" device-map))
+           (type "ext4")))
+   (if efi?
+       (list (file-system
+               (mount-point "/boot/efi")
+               (device (file-system-by-label %esp-label "vfat" device-map))
+               (type "vfat")))
+       '())))
 
 (define (lvm-root-volume storage)
   "Return the volume named root in STORAGE, or #f."
@@ -292,7 +297,10 @@ plain record: nothing is installed by this procedure."
                               (render-assemble answers)))
       (file-systems (append (if (eq? mode 'lvm)
                                 (lvm-file-systems storage device-map)
-                                (simple-file-systems device-map))
+                                (simple-file-systems
+                                 device-map
+                                 (eq? (assq-ref boot 'bootloader)
+                                      'grub-efi)))
                             (data-volume-file-systems storage)))
       (services
        (cons* (service openssh-service-type)

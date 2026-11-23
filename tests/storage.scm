@@ -55,9 +55,9 @@
 
   (test-equal "the physical volume partition is marked for LVM"
     '("parted" "-s" "/dev/vda" "mklabel" "gpt"
-      "mkpart" "ESP" "fat32" "1MiB" "513MiB"
+      "mkpart" "ESP" "fat32" "1MiB" "1025MiB"
       "set" "1" "esp" "on"
-      "mkpart" "pv" "ext4" "513MiB" "100%"
+      "mkpart" "pv" "ext4" "1025MiB" "100%"
       "set" "2" "lvm" "on")
     (list-ref commands 0))
 
