@@ -5,6 +5,8 @@
 # live image already has guix, and a bootstrap would fetch over the direct
 # route before the proxy is applied, which would prove nothing about T6.
 cd /mnt/repo || exit 1
+[ -f /mnt/repo/host-signing-key.pub ] && \
+  guix archive --authorize < /mnt/repo/host-signing-key.pub
 A=${1:-/mnt/repo/tests/fixtures/answers-t6.scm}
 [ -f /mnt/repo/tests/fixtures/answers-t6-local.scm ] && A=/mnt/repo/tests/fixtures/answers-t6-local.scm
 {
