@@ -158,6 +158,10 @@ in: stopping the daemon interrupts any other build on the machine."
           (unless (zero? (run-command/stream "herd" "stop" "guix-daemon"))
             (log-line "could not stop guix-daemon")
             (exit +exit-install+))
+          ;; A rerun must not leave a previous daemon competing for the store
+          ;; locks; the restart owns the daemon from here on.
+          (run-command/stream "pkill" "-x" "guix-daemon")
+          (sleep 1)
           (let* ((urls (filter-map
                         (lambda (service) (assq-ref service 'url))
                         (or (assq-ref (assq-ref answers 'source)
