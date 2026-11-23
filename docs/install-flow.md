@@ -139,6 +139,37 @@ well as into the live environment. When `authorize-key?` is true — the default
 the target's `/etc/guix/acl` cannot be edited later, so a key that is only
 authorised during installation disappears at the first boot.
 
+## Assembled storage: RAID and LVM
+
+The NAS mode assembles data volumes from disks that change over time. The
+design survives that because mount addressing is separated from assembly:
+
+| Layer | What it is | Identity |
+|:--|:--|:--|
+| assembly | mdadm array, LVM volume group and logical volume | member disks by **disk-level** identity (WWN, serial or GPT partition UUID), the array or volume by its own name and UUID |
+| file system | ext4/btrfs on the assembled device | the **file-system UUID**, unchanged when members are replaced |
+| declaration | `mapped-devices` plus `file-systems` | only the top two layers appear here |
+
+Consequences that the schema and the renderer must honour:
+
+- A replaced member disk changes the declaration's *assembly* section only.
+  The mount section is untouched, because the file-system UUID inside the
+  volume did not change.
+- Data volumes are **adopted, never created implicitly**: a data-volume entry
+  carries the file-system UUID of the existing volume, and the installer
+  assembles — but does not format — it.
+- Root and boot stay outside the data pool: `gradus-root` and `GRADUS-ESP`
+  are independent of whatever happens to the data disks, which is why a
+  failing data array cannot take the boot path down.
+- `blkid` reports the file system on an assembled device exactly as on a
+  partition, so the label-to-UUID device map needs no special case.
+
+Implementation-wise this means: the answer schema's storage section grows
+`lvm` and `raid` modes whose members are named by disk identity; the renderer
+gains a `mapped-devices` section translated from the assembly; and the
+prepare step assembles but never formats data volumes. None of it changes the
+mount-addressing rule decided above.
+
 ## What the review stage must show
 
 Borrowed from both reference installers: a summary that is complete enough to

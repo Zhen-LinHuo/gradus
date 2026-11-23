@@ -59,21 +59,48 @@ caller when the answers name it."
       (home-directory (string-append "/home/" (assq-ref u 'name)))))
    users))
 
-(define (simple-file-systems)
+(define (uuid-type-for fs-type)
+  "Map a file-system type name onto the UUID type that `string->uuid'
+understands."
+  (match fs-type
+    ("vfat" 'fat)
+    ("ext2" 'ext2)
+    ("ext3" 'ext3)
+    ("ext4" 'ext4)
+    ("btrfs" 'btrfs)
+    (_ 'dce)))
+
+(define (file-system-by-label label type device-map)
+  "Return the device for LABEL: a UUID object when DEVICE-MAP has read one
+back from the freshly created file system, otherwise the label itself.  The
+map is keyed by label strings, so the lookup is by `assoc-ref'."
+  (let ((entry (assoc-ref device-map label)))
+    (if (and entry (assq-ref entry 'uuid) (assq-ref entry 'type))
+        (let* ((fs-type (assq-ref entry 'type))
+               (uuid-type (uuid-type-for fs-type))
+               (bv (string->uuid (assq-ref entry 'uuid) uuid-type)))
+          (if bv
+              (bytevector->uuid bv uuid-type)
+              (file-system-label label)))
+        (file-system-label label))))
+
+(define (simple-file-systems device-map)
   "The file systems for `simple' storage mode: one ext4 root and one EFI
-system partition, both addressed by label."
+system partition, addressed by UUID when the map knows it, by label otherwise."
   (list (file-system
           (mount-point "/")
-          (device (file-system-label %root-label))
+          (device (file-system-by-label %root-label "ext4" device-map))
           (type "ext4"))
         (file-system
           (mount-point "/boot/efi")
-          (device (file-system-label %esp-label))
+          (device (file-system-by-label %esp-label "vfat" device-map))
           (type "vfat"))))
 
-(define (render-answers answers)
-  "Render a validated answer form into an operating-system declaration.  The
-result is a plain record: nothing is installed by this procedure."
+(define (render-answers/devices answers device-map)
+  "Render a validated answer form into an operating-system declaration.
+DEVICE-MAP is the label-keyed map returned by the storage step; labels for
+which a UUID is known become UUID devices in the declaration.  The result is a
+plain record: nothing is installed by this procedure."
   (let ((boot (assq-ref answers 'boot))
         (storage (assq-ref answers 'storage))
         (users (assq-ref answers 'users)))
@@ -86,8 +113,12 @@ result is a plain record: nothing is installed by this procedure."
       (locale (or (assq-ref answers 'locale) "en_US.utf8"))
       (kernel linux-libre)
       (bootloader (boot-record boot))
-      (file-systems (simple-file-systems))
+      (file-systems (simple-file-systems device-map))
       (services
        (cons* (service openssh-service-type)
               %base-services))
       (users (answer-users users)))))
+
+(define (render-answers answers)
+  "Render ANSWERS without a device map: file systems fall back to labels."
+  (render-answers/devices answers '()))
