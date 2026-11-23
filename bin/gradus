@@ -1,0 +1,13 @@
+#!/bin/sh
+# Gradus launcher: run the installer from a checkout without asking the
+# operator to know how Guile takes its arguments.
+#
+#   ./bin/gradus --tui
+#   ./bin/gradus --config config.scm --root /mnt/target --dry-run
+#
+# The Guix environment is expected to provide guile (and, for --tui,
+# guile-ncurses).
+set -e
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+root=$(dirname -- "$here")
+exec guile -L "$root" -s "$root/gradus/script.scm" "$@"
