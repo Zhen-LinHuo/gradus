@@ -11,7 +11,9 @@
   #:use-module (gradus utils)
   #:use-module (gradus wizard)
   #:use-module (ice-9 format)
+  #:use-module (ice-9 rdelim)
   #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-13)
   #:export (run-tui))
 
 ;; The input model follows the guile-ncurses manual: `cbreak!' makes single
@@ -22,7 +24,8 @@
   (list
    '((title . "Gradus 安装向导") (step . "步骤")
      (lang . "界面语言")
-     (source . "安装源") (proxy . "HTTP 代理（可留空）")
+     (source . "安装源") (substitute . "Substitute 源地址")
+     (proxy . "HTTP 代理（可留空）") (disks . "检测到的磁盘")
      (storage . "存储") (disk . "目标磁盘") (mode . "布局方式")
      (users . "用户") (username . "用户名")
      (review . "确认") (confirm . "开始安装？(y/n)")
@@ -31,7 +34,8 @@
      (simple . "标准分区") (lvm . "LVM"))
    '((title . "Gradus installer") (step . "step")
      (lang . "Interface language")
-     (source . "Installation source") (proxy . "HTTP proxy (may be empty)")
+     (source . "Installation source") (substitute . "Substitute server URL")
+     (proxy . "HTTP proxy (may be empty)") (disks . "Disks found")
      (storage . "Storage") (disk . "Target disk") (mode . "Layout")
      (users . "User") (username . "User name")
      (review . "Review") (confirm . "Start the installation? (y/n)")
@@ -65,8 +69,9 @@
 ;; ----------------------------------------------------------------- input
 
 (define (ask wizard win y label default)
-  "Draw LABEL with DEFAULT and read a line.  An empty answer means DEFAULT."
-  (put win y 2 (format #f "~a [~a]: " label default))
+  "Draw LABEL with DEFAULT, read a line, and leave the cursor on the next row."
+  (put win y 2 (format #f "~a (~a): " label default))
+  (put win (+ y 1) 2 "> ")
   (refresh win)
   (let ((answer (getnstr win 200)))
     (if (or (not answer) (string-null? answer)) default answer)))
@@ -80,6 +85,7 @@
         (put win row 4 (format #f "~a ~a" n (car items)))
         (index-loop (cdr items) (+ row 1) (+ n 1))))
     (put win (+ y 1 (length options)) 2 (tr wizard 'choose))
+    (put win (+ y 2 (length options)) 2 "> ")
     (refresh win)
     (let* ((answer (getnstr win 8))
            (n (and answer (string->number answer))))
@@ -90,34 +96,81 @@
 ;; ----------------------------------------------------------------- pages
 
 (define (page-language win wizard)
-  ;; No language is chosen yet, so this page is bilingual by design.
+  ;; English is offered first: a Linux console without a Unicode font renders
+  ;; Chinese as empty boxes, so the safe default must be the one that works.
   (clear win)
   (box win (acs-vline) (acs-hline))
   (put win 0 2 " Gradus ")
-  (put win 2 2 "1 简体中文")
-  (put win 3 2 "2 English")
-  (put win 5 2 "输入序号后回车 / Type a number and press Enter")
+  (put win 2 2 "1 English")
+  (put win 3 2 "2 简体中文 (needs a Unicode console font)")
+  (put win 5 2 "Type a number and press Enter / 输入序号后回车")
+  (put win 7 2 "> ")
   (refresh win)
   (let* ((answer (getnstr win 8))
-         (choice (if (equal? (or answer "") "2") 1 0)))
+         ;; The table is (Chinese, English); the page lists English first.
+         (choice (if (equal? (or answer "") "1") 1 0)))
     (wizard-next (wizard-set wizard 'ui-language choice))))
 
 (define (page-source win wizard)
-  (let* ((proxy (ask wizard win 3 (tr wizard 'proxy) ""))
-         (w (if (string-null? proxy)
-                (wizard-set wizard 'source '())
-                (wizard-set wizard 'source
-                            (list 'proxy (list 'http proxy
-                                               'https proxy
-                                               'no-proxy '("10.0.2.100")))))))
-    (wizard-next w)))
+  (let* ((url (ask wizard win 3 (tr wizard 'substitute)
+                   "https://ci.guix.gnu.org"))
+         (proxy (ask wizard win 6 (tr wizard 'proxy) ""))
+         (services (if (string-null? url)
+                       '()
+                       (list (list (cons 'name "primary")
+                                   (cons 'url url)
+                                   (cons 'kind 'official)))))
+         (source (append
+                  (if (null? services) '()
+                      (list (cons 'substitute-services services)))
+                  (if (string-null? proxy) '()
+                      (list (cons 'proxy
+                                  (list (cons 'http proxy)
+                                        (cons 'https proxy)
+                                        (cons 'no-proxy '("10.0.2.100")))))))))
+    (wizard-next (wizard-set wizard 'source source))))
+
+(define (%disk-name entry)
+  (string-append "/dev/" entry))
+
+(define (%disk-size entry)
+  "Size of the block device ENTRY in GB, from sysfs."
+  (let ((path (format #f "/sys/block/~a/size" entry)))
+    (if (file-exists? path)
+        (let ((sectors (call-with-input-file path
+                         (lambda (port)
+                           (or (string->number (string-trim-both (read-line port))) 0)))))
+          (/ (* sectors 512.0) (expt 1024 3)))
+        0)))
+
+(define (%disks)
+  "Block devices a human could install onto: whole disks, not loop/ram/dm."
+  (let ((dir (opendir "/sys/block")))
+    (let loop ((found '()))
+      (let ((entry (readdir dir)))
+        (cond ((eof-object? entry) (closedir dir) (reverse found))
+              ((or (string-prefix? "loop" entry)
+                   (string-prefix? "ram" entry)
+                   (string-prefix? "zram" entry)
+                   (string-prefix? "sr" entry)
+                   (string-prefix? "dm-" entry)
+                   (string-prefix? "md" entry))
+               (loop found))
+              (else (loop (cons entry found))))))))
 
 (define (page-storage win wizard)
-  (let* ((mode (ask-number wizard win 3 (tr wizard 'mode)
+  (let* ((disks (%disks))
+         (labels (map (lambda (entry)
+                        (format #f "~a  (~,1f GB)" (%disk-name entry)
+                                (%disk-size entry)))
+                      disks))
+         (choice (ask-number wizard win 3 (tr wizard 'disks) labels 0))
+         (disk (%disk-name (list-ref disks choice)))
+         (mode-row (+ 6 (length labels)))
+         (mode (ask-number wizard win mode-row (tr wizard 'mode)
                            (list (tr wizard 'simple) (tr wizard 'lvm))
                            0))
          (mode-sym (if (zero? mode) 'simple 'lvm))
-         (disk (ask wizard win 9 (tr wizard 'disk) "/dev/vda"))
          (w (wizard-set wizard 'storage
                         (append (list 'mode mode-sym 'disk disk)
                                 (if (eq? mode-sym 'lvm)
