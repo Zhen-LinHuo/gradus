@@ -65,8 +65,19 @@ caller when the answers name it."
       (group (or (assq-ref u 'group) "users"))
       (supplementary-groups
        (or (assq-ref u 'groups) '("wheel")))
-      (home-directory (string-append "/home/" (assq-ref u 'name)))))
+      (home-directory (string-append "/home/" (assq-ref u 'name)))
+      (password (assq-ref u 'password))))
    users))
+
+(define (root-account answers)
+  "The root account.  Its password comes from the answers when one was given;
+otherwise root has no password, which is what an unattended install onto a
+machine reachable only by console expects."
+  (user-account
+   (name "root")
+   (group "root")
+   (home-directory "/root")
+   (password (assq-ref answers 'root-password))))
 
 (define (uuid-type-for fs-type)
   "Map a file-system type name onto the UUID type that `string->uuid'
@@ -282,7 +293,7 @@ plain record: nothing is installed by this procedure."
               (modify-services %base-services
                 (guix-service-type config =>
                                    ((guix-service-for answers) config)))))
-      (users (answer-users users)))))
+      (users (cons (root-account answers) (answer-users users))))))
 
 (define (render-answers answers)
   "Render ANSWERS without a device map: file systems fall back to labels."

@@ -10,6 +10,7 @@
   #:export (%wizard-steps
             %answer-defaults
             with-defaults
+            storage-answers
             make-wizard
             wizard-answers
             wizard-step
@@ -46,6 +47,15 @@ the operator chose."
   (append answers
           (filter (lambda (pair) (not (assq (car pair) answers)))
                   %answer-defaults)))
+
+(define (storage-answers mode disk)
+  "The storage answer for MODE and DISK.  It is an alist, and it is built here
+so that a front-end cannot get the shape wrong."
+  (append (list (cons 'mode mode) (cons 'disk disk))
+          (if (eq? mode 'lvm)
+              '((volume-group . "vg0")
+                (volumes ((name . "root") (size . "100%FREE"))))
+              '())))
 
 (define (make-wizard)
   "A wizard at the first step, with no answers."
