@@ -14,6 +14,7 @@
   #:use-module (gnu services)
   #:use-module (gnu services base)
   #:use-module (gnu services ssh)
+  #:use-module (gnu services networking)
   #:use-module (ice-9 string-fun)
   #:use-module (gradus answers)
   #:use-module (srfi srfi-1)
@@ -241,6 +242,7 @@ plain record: nothing is installed by this procedure."
                             (data-volume-file-systems storage)))
       (services
        (cons* (service openssh-service-type)
+              (service dhcpcd-service-type)
               (modify-services %base-services
                 (guix-service-type config =>
                                    ((guix-service-for answers) config)))))
