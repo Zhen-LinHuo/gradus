@@ -18,25 +18,36 @@
 (define (parse-blkid text)
   "Parse the output of `blkid -o export' into an association list keyed by
 file-system label.  Each value is an alist with the device name, the type and
-the UUID.  Devices without a label are skipped: they cannot be addressed by the
-prepare step."
+the UUID.  Devices are separated by blank lines, so the order of the fields
+inside a block does not matter.  Devices without a label are skipped: they
+cannot be addressed by the prepare step."
   (let loop ((lines (string-split text #\newline))
              (current '())
              (result '()))
     (match lines
-      (() (reverse result))
+      (()
+       ;; Flush the last block, if any.
+       (if (null? current)
+           (reverse result)
+           (let ((label (assq-ref current 'label)))
+             (reverse (if label (acons label current result) result)))))
       ((line . rest)
-       (match (string-split line #\=)
-         (("DEVNAME" value)
-          (loop rest `((device . ,value)) result))
-         (("TYPE" value)
-          (loop rest (acons 'type value current) result))
-         (("UUID" value)
-          (loop rest (acons 'uuid value current) result))
-         (("LABEL" value)
-          (loop rest (acons 'label value current)
-                (acons value (acons 'label value current) result)))
-         (_ (loop rest current result)))))))
+       (cond ((string-null? line)
+              ;; End of one device block.
+              (let ((label (assq-ref current 'label)))
+                (loop rest '()
+                      (if label (acons label current result) result))))
+             (else
+              (match (string-split line #\=)
+                (("DEVNAME" value)
+                 (loop rest (acons 'device value current) result))
+                (("TYPE" value)
+                 (loop rest (acons 'type value current) result))
+                (("UUID" value)
+                 (loop rest (acons 'uuid value current) result))
+                (("LABEL" value)
+                 (loop rest (acons 'label value current) result))
+                (_ (loop rest current result)))))))))
 
 (define (read-device-map devices)
   "Return the label-keyed device map for the given device names, by running
