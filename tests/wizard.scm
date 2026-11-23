@@ -54,6 +54,14 @@
   (test-equal "the language survives navigation"
     0 (wizard-language (wizard-next (wizard-set-language (make-wizard) 0))))
 
+  (test-equal "the storage answer names its disk"
+    "/dev/vdb"
+    (assq-ref (storage-answers 'simple "/dev/vdb") 'disk))
+
+  (test-equal "an lvm storage answer carries a volume group"
+    "vg0"
+    (assq-ref (storage-answers 'lvm "/dev/vdb") 'volume-group))
+
   (test-assert "the answers the wizard collects validate"
     (let* ((w (wizard-set (wizard-set (make-wizard)
                                       'storage
