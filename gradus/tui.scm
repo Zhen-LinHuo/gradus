@@ -151,17 +151,15 @@
         0)))
 
 (define (%disks)
-  "Whole disks a human could install onto.  Loop, ram and device-mapper nodes
-are not disks, and a disk that is mounted or holds the running system is
-excluded: offering it would only lead to a refused installation."
+  "Whole block devices.  Loop, ram and device-mapper nodes are not disks.  A
+disk that is in use is listed too, with its mount points, so the operator can
+see why: hiding a disk they expect is worse than showing it with a warning."
   (let ((dir (opendir "/sys/block")))
     (let loop ((found '()))
       (let ((entry (readdir dir)))
         (cond ((eof-object? entry)
                (closedir dir)
-               (filter (lambda (name)
-                         (not (disk-busy? (%disk-name name))))
-                       (reverse found)))
+               (reverse found))
               ((or (string-prefix? "loop" entry)
                    (string-prefix? "ram" entry)
                    (string-prefix? "zram" entry)
@@ -171,23 +169,65 @@ excluded: offering it would only lead to a refused installation."
                (loop found))
               (else (loop (cons entry found))))))))
 
+(define (%mounts)
+  "The (device . mount-point) pairs currently mounted."
+  (let ((lines (string-split
+                (call-with-input-file "/proc/mounts" read-string) #\newline)))
+    (filter-map
+     (lambda (line)
+       (let ((fields (string-split line #\space)))
+         (and (>= (length fields) 2)
+              (cons (list-ref fields 0) (list-ref fields 1)))))
+     lines)))
+
+(define (%disk-mounts disk)
+  "Mount points held by DISK or any of its partitions."
+  (filter-map (lambda (entry)
+                (and (string-prefix? disk (car entry)) (cdr entry)))
+              (%mounts)))
+
 (define (page-storage win wizard)
   (let* ((disks (%disks))
          (_ (when (null? disks)
-              (error "no installable disk was found: every disk is in use or absent")))
+              (error "no disk was found on this machine")))
+         (info (map (lambda (name)
+                      (cons name (%disk-mounts (%disk-name name))))
+                    disks))
          (labels (map (lambda (entry)
-                        (format #f "~a  (~,1f GB)" (%disk-name entry)
-                                (%disk-size entry)))
-                      disks))
+                        (let ((name (car entry))
+                              (mounts (cdr entry)))
+                          (format #f "~a  (~,1f GB)~a"
+                                  (%disk-name name) (%disk-size name)
+                                  (if (null? mounts) ""
+                                      (format #f "   [in use: ~a]"
+                                              (string-join mounts ", "))))))
+                      info))
          (choice (ask-number wizard win 3 (tr wizard 'disks) labels 0))
-         (disk (%disk-name (list-ref disks choice)))
-         (mode-row (+ 6 (length labels)))
-         (mode (ask-number wizard win mode-row (tr wizard 'mode)
-                           (list (tr wizard 'simple) (tr wizard 'lvm))
-                           0))
-         (mode-sym (if (zero? mode) 'simple 'lvm))
-         (w (wizard-set wizard 'storage (storage-answers mode-sym disk))))
-    (wizard-next w)))
+         (chosen (list-ref info choice))
+         (disk (%disk-name (car chosen)))
+         (mounts (cdr chosen)))
+    ;; Installing over a mounted file system destroys data that is in use.
+    (when (member "/" mounts)
+      (error "that disk holds the running system; choose another one"))
+    (when (pair? mounts)
+      (put win (+ 5 (length labels)) 2
+           (format #f "~a is in use (~a); it will be unmounted."
+                   disk (string-join mounts ", ")))
+      (put win (+ 7 (length labels)) 2 "Continue? (y/n)")
+      (put win (+ 8 (length labels)) 2 "> ")
+      (refresh win)
+      (unless (member (string-downcase (or (getnstr win 8) "")) '("y" "yes"))
+        (error "the operator declined to unmount the disk"))
+      (for-each (lambda (mount)
+                  (run-command/stream "umount" "-R" mount))
+                mounts))
+    (let* ((mode-row (+ 10 (length labels)))
+           (mode (ask-number wizard win mode-row (tr wizard 'mode)
+                              (list (tr wizard 'simple) (tr wizard 'lvm))
+                              0))
+           (mode-sym (if (zero? mode) 'simple 'lvm))
+           (w (wizard-set wizard 'storage (storage-answers mode-sym disk))))
+      (wizard-next w))))
 
 (define (ask-password wizard win y label)
   "Read a password without echoing it."
