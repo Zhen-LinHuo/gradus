@@ -20,18 +20,18 @@
                    "UUID=1454237d-7923-4816-827a-3064eba2b19d\n"
                    "LABEL=gradus-root\n"))
 
-  (define map (parse-blkid sample))
+  (define parsed (parse-blkid sample))
 
   (test-equal "two labelled devices are parsed"
-    2 (length map))
+    2 (length parsed))
 
   (test-equal "entries are keyed by label"
-    '("GRADUS-ESP" "gradus-root") (map car map))
+    '("GRADUS-ESP" "gradus-root") (map car parsed))
 
   (test-equal "the type and UUID are kept"
     '("ext4" "1454237d-7923-4816-827a-3064eba2b19d")
-    (list (assq-ref (assoc-ref map "gradus-root") 'type)
-          (assq-ref (assoc-ref map "gradus-root") 'uuid)))
+    (list (assq-ref (assoc-ref parsed "gradus-root") 'type)
+          (assq-ref (assoc-ref parsed "gradus-root") 'uuid)))
 
   (test-equal "unlabelled devices are skipped"
     0 (length (parse-blkid "DEVNAME=/dev/sda1\nTYPE=ext4\n"))))
