@@ -14,10 +14,38 @@ give you: **the installer's output is a `config.scm`**, not an opaque system
 state. The machine is installed *from* that file, and the file is kept on the
 machine afterwards.
 
-> **Status: design stage.** No installer code exists yet. This repository
-> currently holds the contract, the page specification and the acceptance tests.
-> Watch the roadmap below; v0.1 will be the minimum that can install a plain
-> Guix System from an unattended profile.
+＞ **Status: early development.** `--config` and `--answers` can install a
+＞ plain Guix System from a checkout (see *Running from a checkout* below).
+＞ The interactive wizard does not exist yet. The contract documents modes and
+＞ options that are specified but not implemented — every option the software
+＞ actually accepts is listed in this README and in `gradus --help`.
+
+## Running from a checkout
+
+Gradus is not packaged yet; you run it straight from a clone. You need Guix
+(`guix shell` drives everything, and the target is installed with
+`guix system init`).
+
+```sh
+git clone https://github.com/Zhen-LinHuo/gradus && cd gradus
+
+# See what an install would do, touching nothing:
+guix shell -q guix guile -- guile -L . gradus/script.scm \
+    --config my-config.scm --root /mnt/target --dry-run
+
+# Install (the target's file systems must already exist, with the labels or
+# UUIDs your config names; --config mode does not partition):
+sudo guix shell -q guix guile -- guile -L . gradus/script.scm \
+    --config my-config.scm --root /mnt/target
+
+# Or let an answer file describe the target, including its disk layout:
+sudo guix shell -q guix guile -- guile -L . gradus/script.scm \
+    --answers my-answers.scm --root /mnt/target
+```
+
+After a successful run, the target carries `/etc/config.scm` (the declaration
+that was installed) and `/etc/gradus/provenance.scm` (which installer, contract
+and Guix revision produced it).
 
 ## The name
 
@@ -61,17 +89,23 @@ bootloaders and packages — not about "routers" or "NAS boxes".
    proposed to the Guix project because it mentions this project's private
    infrastructure is a feature that belongs somewhere else.
 
-## Planned invocations
+## Invocations
+
+The CLI below is the contract; options marked *(planned)* are specified in
+[`docs/contract.md`](docs/contract.md) but not implemented yet.
 
 ```sh
-# Interactive, generic wizard
+# Interactive, generic wizard (planned)
 gradus
 
-# Install an existing configuration as-is (labels/UUIDs must resolve)
-gradus --config config.scm --target /dev/nvme0n1
+# Install an existing configuration as-is; the target's file systems must
+# already exist with the labels/UUIDs the config names, and are mounted
+# beneath --root
+gradus --config config.scm --root /mnt/target
 
-# Unattended: answer file supplies the facts, the profile supplies the policy
-gradus --answers answers.scm --target /dev/nvme0n1 --erase
+# Unattended: the answer file supplies the facts *and* the disk layout, the
+# target disk is prepared for you (--target/--erase/--yes are planned)
+gradus --answers answers.scm --root /mnt/target
 
 # Validate everything, write nothing
 gradus --answers answers.scm --dry-run
