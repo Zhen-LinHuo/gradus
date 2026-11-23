@@ -99,6 +99,21 @@ daemon, and the installer does that through Shepherd (`herd`), which only exists
 on Guix System.  A host running Guix on top of another distribution cannot
 exercise this path; the VM runbook in `tests/vm/` is the place for it.
 
+**Status:** not yet run end to end.  The proxy environment itself reaches the
+Guix daemon in a live system; completing the installation inside the test VM is
+blocked by the rig, not by the installer.
+
+**Rig notes.** Three things cost time and should be settled before a run:
+
+- A serial console backed by a file gives the guest's login shell EOF, so the
+  shell exits and typed input lands on the login prompt.  Use a pty and keep it
+  open for the life of the VM.
+- The VM must hold a DHCP lease before `hostfwd` to port 22 can work; a refused
+  connection usually means no address, not a missing sshd.
+- Before booting an image that is supposed to act on its own, confirm the
+  service or special file is present in the *built system* — a declaration that
+  builds is not proof that the activation ran.
+
 Procedure: install with `http_proxy`/`https_proxy` set to a proxy that is the
 only route out, and with a `no_proxy` entry covering the local substitute cache.
 A logging CONNECT proxy is enough to prove the route: the installation must
