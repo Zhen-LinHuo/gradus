@@ -96,20 +96,21 @@
 ;; ----------------------------------------------------------------- pages
 
 (define (page-language win wizard)
-  ;; English is offered first: a Linux console without a Unicode font renders
-  ;; Chinese as empty boxes, so the safe default must be the one that works.
+  ;; A text console font holds at most 512 glyphs, so this front-end cannot
+  ;; render Chinese at all: offering it would promise something the console
+  ;; cannot deliver.  The Chinese strings stay in %strings for the graphical
+  ;; and web front-ends.
   (clear win)
   (box win (acs-vline) (acs-hline))
   (put win 0 2 " Gradus ")
-  (put win 2 2 "1 English")
-  (put win 3 2 "2 简体中文 (needs a Unicode console font)")
-  (put win 5 2 "Type a number and press Enter / 输入序号后回车")
-  (put win 7 2 "> ")
+  (put win 2 2 "This installer runs in English on a text console.")
+  (put win 4 2 "A Chinese interface is available in the graphical and web")
+  (put win 5 2 "installers, which are not yet part of this release.")
+  (put win 7 2 "Press Enter to continue.")
+  (put win 9 2 "> ")
   (refresh win)
-  (let* ((answer (getnstr win 8))
-         ;; The table is (Chinese, English); the page lists English first.
-         (choice (if (equal? (or answer "") "1") 1 0)))
-    (wizard-next (wizard-set wizard 'ui-language choice))))
+  (getnstr win 8)
+  (wizard-next (wizard-set wizard 'ui-language 1)))
 
 (define (page-source win wizard)
   (let* ((url (ask wizard win 3 (tr wizard 'substitute)
