@@ -93,8 +93,16 @@ Cases that must fail with the documented exit status and a readable message:
 **Question:** can an installation complete on a network with no direct egress,
 and does the installed system keep using the proxy?
 
+**Where it must run.** In the Guix System live environment, not on a foreign
+distribution.  Applying the proxy to substitutes means restarting the Guix
+daemon, and the installer does that through Shepherd (`herd`), which only exists
+on Guix System.  A host running Guix on top of another distribution cannot
+exercise this path; the VM runbook in `tests/vm/` is the place for it.
+
 Procedure: install with `http_proxy`/`https_proxy` set to a proxy that is the
 only route out, and with a `no_proxy` entry covering the local substitute cache.
+A logging CONNECT proxy is enough to prove the route: the installation must
+appear in its log.
 
 Pass criteria:
 
