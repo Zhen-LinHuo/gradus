@@ -13,6 +13,8 @@
             make-wizard
             wizard-answers
             wizard-step
+            wizard-language
+            wizard-set-language
             wizard-next
             wizard-back
             wizard-set
@@ -23,9 +25,13 @@
 (define %wizard-steps
   '(language source storage users review install))
 
-;; A wizard is a pair: the answers collected so far, and the current step.
-;; It is an immutable value: every transition returns a new wizard, which is
-;; what makes the flow testable without a terminal.
+;; A wizard holds three things: the answers collected so far, the current step,
+;; and the interface language.  The language is deliberately *not* an answer:
+;; the answer file has a closed set of keys and the interface language is not
+;; one of them.  Every transition returns a new wizard, which is what makes the
+;; flow testable without a terminal.
+
+(define %default-language 1)          ; 0 Chinese, 1 English
 
 ;; Keys the pages do not ask about.  They are part of the answer shape, so the
 ;; wizard owns them rather than any one front-end.
@@ -43,7 +49,7 @@ the operator chose."
 
 (define (make-wizard)
   "A wizard at the first step, with no answers."
-  (cons '() (car %wizard-steps)))
+  (list '() (car %wizard-steps) %default-language))
 
 (define (wizard-answers wizard)
   "The answers collected so far, as an alist."
@@ -51,30 +57,41 @@ the operator chose."
 
 (define (wizard-step wizard)
   "The current step, one of `%wizard-steps'."
-  (cdr wizard))
+  (cadr wizard))
+
+(define (wizard-language wizard)
+  "The interface language index: 0 Chinese, 1 English."
+  (caddr wizard))
+
+(define (wizard-set-language wizard language)
+  "Record LANGUAGE as the interface language."
+  (list (wizard-answers wizard) (wizard-step wizard) language))
 
 (define (wizard-next wizard)
   "Move to the following step; staying put at the last one is not an error."
   (let ((rest (memq (wizard-step wizard) %wizard-steps)))
     (if (and (pair? rest) (pair? (cdr rest)))
-        (cons (car wizard) (cadr rest))
+        (list (wizard-answers wizard) (cadr rest) (wizard-language wizard))
         wizard)))
 
 (define (wizard-back wizard)
   "Move to the previous step; staying put at the first one is not an error."
-  (let loop ((seen '())
-             (remaining %wizard-steps))
+  (let loop ((remaining %wizard-steps)
+             (previous #f))
     (match remaining
       ((step . rest)
-       (if (and (pair? rest) (eq? (car rest) (wizard-step wizard)))
-           (cons (car wizard) step)
-           (loop (cons step seen) rest)))
+       (if (eq? step (wizard-step wizard))
+           (if previous
+               (list (wizard-answers wizard) previous (wizard-language wizard))
+               wizard)
+           (loop rest step)))
       (() wizard))))
 
 (define (wizard-set wizard key value)
   "Record KEY as VALUE in the answers, replacing any earlier value."
-  (cons (acons key value (assq-remove! (car wizard) key))
-        (cdr wizard)))
+  (list (acons key value (assq-remove! (wizard-answers wizard) key))
+        (wizard-step wizard)
+        (wizard-language wizard)))
 
 (define (wizard-complete? wizard)
   "Whether every step has been visited and the wizard sits at `install'."

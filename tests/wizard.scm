@@ -47,6 +47,13 @@
                      (wizard-set (wizard-set w 'host-name "vm0")
                                  'host-name "vm1")))))
 
+  (test-assert "the interface language is state, not an answer"
+    (not (assq 'ui-language (wizard-answers
+                             (wizard-set-language (make-wizard) 0)))))
+
+  (test-equal "the language survives navigation"
+    0 (wizard-language (wizard-next (wizard-set-language (make-wizard) 0))))
+
   (test-assert "the answers the wizard collects validate"
     (let* ((w (wizard-set (wizard-set (make-wizard)
                                       'storage
