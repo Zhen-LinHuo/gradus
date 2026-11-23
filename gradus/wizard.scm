@@ -8,7 +8,7 @@
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
   #:export (%wizard-steps
-            %answer-defaults
+            firmware-bootloader
             with-defaults
             storage-answers
             make-wizard
@@ -36,20 +36,25 @@
 
 ;; Keys the pages do not ask about.  They are part of the answer shape, so the
 ;; wizard owns them rather than any one front-end.
-(define %answer-defaults
+(define (firmware-bootloader)
+  "The bootloader this machine can actually boot: EFI where the firmware
+provides it, BIOS otherwise."
+  (if (file-exists? "/sys/firmware/efi") 'grub-efi 'grub-bios))
+
+(define (%answer-defaults)
   `((schema-version . 1)
     (profile . "headless")
     (host-name . "gradus")
     ;; A machine must be installable without visiting a boot page; the page
     ;; itself arrives later and overrides this.
-    (boot . ((bootloader . grub-bios) (timeout . 5)))))
+    (boot . ((bootloader . ,(firmware-bootloader)) (timeout . 5)))))
 
 (define (with-defaults answers)
   "Fill in the keys the wizard does not ask about, without overriding anything
 the operator chose."
   (append answers
           (filter (lambda (pair) (not (assq (car pair) answers)))
-                  %answer-defaults)))
+                  (%answer-defaults))))
 
 (define (storage-answers mode disk)
   "The storage answer for MODE and DISK.  It is an alist, and it is built here

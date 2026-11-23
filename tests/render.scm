@@ -46,13 +46,16 @@
     2
     (length (operating-system-users os)))
 
-  (test-equal "the bootloader lands on the storage disk by default"
+  (test-equal "a BIOS bootloader refuses a mount point and uses the disk"
     '("/dev/vdb")
     (bootloader-configuration-targets
      (operating-system-bootloader
       (render-answers
-       (with-defaults (list (cons 'storage (storage-answers 'simple "/dev/vdb"))
-                            (cons 'users '(((name . "t") (group . "users"))))))))))
+       (list (cons 'schema-version 1)
+             (cons 'profile "headless")
+             (cons 'storage (storage-answers 'simple "/dev/vdb"))
+             (cons 'boot '((bootloader . grub-bios) (target . "/boot/efi")))
+             (cons 'users '(((name . "t") (group . "users")))))))))
 
   (test-assert "root is always present"
     (any (lambda (u) (equal? (user-account-name u) "root"))

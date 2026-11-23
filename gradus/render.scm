@@ -47,12 +47,17 @@ larger change than this slice."
             (targets (list "/boot/efi"))
             (timeout timeout)))
           ((eq? kind 'grub-bios)
-           (bootloader-configuration
-            (bootloader grub-bootloader)
-            ;; The bootloader goes on the disk that holds the system unless the
-            ;; answers name another device.
-            (targets (list (or (assq-ref boot 'target) disk)))
-            (timeout timeout)))
+           ;; BIOS GRUB is installed into a *device*, never into a directory:
+           ;; a target that is not a device path (a mount point, say) would be
+           ;; turned into /dev/boot/efi and grub-install would refuse it.  Fall
+           ;; back to the disk that holds the system.
+           (let ((target (assq-ref boot 'target)))
+             (bootloader-configuration
+              (bootloader grub-bootloader)
+              (targets (list (if (and target (string-prefix? "/dev/" target))
+                                 target
+                                 disk)))
+              (timeout timeout))))
           (else
            (answers-error (format #f "unsupported bootloader: ~a" kind))))))
 
