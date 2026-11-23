@@ -6,5 +6,6 @@ check:
 	$(GUILE) -L . tests/script.scm
 	$(GUILE) -L . tests/answers.scm
 	$(GUILE) -L . tests/storage.scm
+	$(GUILE) -L . tests/wizard.scm
 	$(GUILE) -L . tests/render.scm
 	$(GUILE) -L . tests/serialize.scm
