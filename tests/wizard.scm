@@ -4,6 +4,7 @@
 ;;; This file is part of Gradus.
 
 (use-modules (srfi srfi-64)
+             (gradus answers)
              (gradus wizard))
 
 (define runner (test-runner-simple))
@@ -45,6 +46,16 @@
                     (wizard-answers
                      (wizard-set (wizard-set w 'host-name "vm0")
                                  'host-name "vm1")))))
+
+  (test-assert "the answers the wizard collects validate"
+    (let* ((w (wizard-set (wizard-set (make-wizard)
+                                      'storage
+                                      '((mode . simple) (disk . "/dev/vda")))
+                          'users
+                          '(((name . "user") (group . "users")))))
+           (answers (with-defaults (wizard-answers w))))
+      (validate-answers answers)
+      #t))
 
   (test-equal "set keeps the newest value"
     "vm1"
