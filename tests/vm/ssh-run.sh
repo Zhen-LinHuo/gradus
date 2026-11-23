@@ -15,7 +15,9 @@ $SSH root@localhost '
   mkdir -p /mnt/repo /mnt/target &&
   mountpoint -q /mnt/repo || mount -t 9p -o trans=virtio repo /mnt/repo
   tmux kill-session -t t6 2>/dev/null || true
-  tmux new -d -s t6 sh /mnt/repo/tests/vm/t6.sh
+  if ! tmux new -d -s t6 sh /mnt/repo/tests/vm/t6.sh 2>/dev/null; then
+    setsid sh /mnt/repo/tests/vm/t6.sh >/dev/null 2>&1 &
+  fi
   echo STARTED'
 
 for i in $(seq 1 180); do
