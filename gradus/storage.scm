@@ -16,7 +16,8 @@
             read-device-map
             partition-name
             lvm-commands
-            prepare-target))
+            prepare-target
+            prepare-simple))
 
 (define (parse-blkid text)
   "Parse the output of `blkid -o export' into an association list keyed by
@@ -90,28 +91,45 @@ and is always a mistake, so this is checked before anything is written."
 
 (define (prepare-simple answers)
   "Partition and format the target described by a `simple' storage answer,
-then return the label-keyed device map of what was created.  Data volumes are
-never touched: this function only creates the system's ESP and root."
+then return the label-keyed device map of what was created.  The layout
+follows the bootloader: an EFI machine gets an ESP, a BIOS machine gets a BIOS
+Boot partition, because GRUB on GPT has nowhere to embed its core image
+otherwise.  Data volumes are never touched."
   (let* ((storage (assq-ref answers 'storage))
          (disk (assq-ref storage 'disk))
-         (esp (partition-name disk 1))
+         (efi? (eq? (assq-ref (assq-ref answers 'boot) 'bootloader)
+                    'grub-efi))
+         (first (partition-name disk 1))
          (root (partition-name disk 2)))
     (when (disk-busy? disk)
       (error "the target disk is in use and will not be written to" disk))
-    (unless (zero? (run-command/stream
-                    "parted" "-s" disk "mklabel" "gpt"
-                    "mkpart" "ESP" "fat32" "1MiB" "513MiB"
-                    "set" "1" "esp" "on"
-                    "mkpart" "root" "ext4" "513MiB" "100%"))
-      (error "partitioning failed" disk))
-    (run-command/stream "partprobe" disk)
-    (run-command/stream "udevadm" "settle")
-    (unless (zero? (run-command/stream "mkfs.vfat" "-n" "GRADUS-ESP" esp))
-      (error "mkfs.vfat failed" esp))
+    (if efi?
+        (begin
+          (unless (zero? (run-command/stream
+                          "parted" "-s" disk "mklabel" "gpt"
+                          "mkpart" "ESP" "fat32" "1MiB" "1025MiB"
+                          "set" "1" "esp" "on"
+                          "mkpart" "root" "ext4" "1025MiB" "100%"))
+            (error "partitioning failed" disk))
+          (run-command/stream "partprobe" disk)
+          (run-command/stream "udevadm" "settle")
+          (unless (zero? (run-command/stream "mkfs.vfat" "-n" "GRADUS-ESP" first))
+            (error "mkfs.vfat failed" first)))
+        (begin
+          ;; BIOS: a 1 MiB BIOS Boot partition, no file system on it, and GRUB
+          ;; embeds its core image there.
+          (unless (zero? (run-command/stream
+                          "parted" "-s" disk "mklabel" "gpt"
+                          "mkpart" "biosboot" "1MiB" "2MiB"
+                          "set" "1" "bios_grub" "on"
+                          "mkpart" "root" "ext4" "2MiB" "100%"))
+            (error "partitioning failed" disk))
+          (run-command/stream "partprobe" disk)
+          (run-command/stream "udevadm" "settle")))
     (unless (zero? (run-command/stream "mkfs.ext4" "-q" "-F"
                                        "-L" "gradus-root" root))
       (error "mkfs.ext4 failed" root))
-    (read-device-map (list esp root))))
+    (read-device-map (if efi? (list first root) (list root)))))
 
 (define (volume-group storage)
   "Return the volume group named by STORAGE, defaulting to \"vg0\"."
@@ -131,9 +149,9 @@ are adopted by the declaration, never created."
                    (error "an LVM target needs a volume named root"))))
     (append
      (list (list "parted" "-s" disk "mklabel" "gpt"
-                 "mkpart" "ESP" "fat32" "1MiB" "513MiB"
+                 "mkpart" "ESP" "fat32" "1MiB" "1025MiB"
                  "set" "1" "esp" "on"
-                 "mkpart" "pv" "ext4" "513MiB" "100%"
+                 "mkpart" "pv" "ext4" "1025MiB" "100%"
                  "set" "2" "lvm" "on")
            (list "partprobe" disk)
            (list "udevadm" "settle")
