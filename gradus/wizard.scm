@@ -37,9 +37,12 @@
 ;; Keys the pages do not ask about.  They are part of the answer shape, so the
 ;; wizard owns them rather than any one front-end.
 (define %answer-defaults
-  '((schema-version . 1)
+  `((schema-version . 1)
     (profile . "headless")
-    (host-name . "gradus")))
+    (host-name . "gradus")
+    ;; A machine must be installable without visiting a boot page; the page
+    ;; itself arrives later and overrides this.
+    (boot . ((bootloader . grub-bios) (timeout . 5)))))
 
 (define (with-defaults answers)
   "Fill in the keys the wizard does not ask about, without overriding anything

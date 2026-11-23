@@ -32,7 +32,7 @@
 (define %root-label "gradus-root")
 (define %esp-label "GRADUS-ESP")
 
-(define (boot-record boot)
+(define (boot-record boot disk)
   "Translate the boot section of an answer file into a
 bootloader-configuration.  `none' is a deliberate value, but the renderer does
 not implement it yet: an operating-system record without a bootloader is a
@@ -49,7 +49,9 @@ larger change than this slice."
           ((eq? kind 'grub-bios)
            (bootloader-configuration
             (bootloader grub-bootloader)
-            (targets (list (assq-ref boot 'target)))
+            ;; The bootloader goes on the disk that holds the system unless the
+            ;; answers name another device.
+            (targets (list (or (assq-ref boot 'target) disk)))
             (timeout timeout)))
           (else
            (answers-error (format #f "unsupported bootloader: ~a" kind))))))
@@ -280,7 +282,7 @@ plain record: nothing is installed by this procedure."
       (timezone (or (assq-ref answers 'timezone) "UTC"))
       (locale (or (assq-ref answers 'locale) "en_US.utf8"))
       (kernel linux-libre)
-      (bootloader (boot-record boot))
+      (bootloader (boot-record boot (assq-ref storage 'disk)))
       (mapped-devices (append (if (eq? mode 'lvm) (lvm-mapped-devices storage) '())
                               (render-assemble answers)))
       (file-systems (append (if (eq? mode 'lvm)
