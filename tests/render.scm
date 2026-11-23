@@ -9,6 +9,7 @@
              (gnu system file-systems)
              (gnu system mapped-devices)
              (gnu system uuid)
+             (gnu system shadow)
              (gnu services)
              (gnu services base)
              (gradus render))
@@ -39,9 +40,20 @@
     "vm0"
     (operating-system-host-name os))
 
-  (test-equal "one user is rendered"
-    1
+  (test-equal "the account named in the answers is rendered, plus root"
+    2
     (length (operating-system-users os)))
+
+  (test-assert "root is always present"
+    (any (lambda (u) (equal? (user-account-name u) "root"))
+         (operating-system-users os)))
+
+  (test-assert "a user password reaches the account"
+    (let* ((answers (with-key 'users
+                              '(((name . "tester") (group . "users")
+                                 (password . "$6$salt$hash")))))
+           (users (operating-system-users (render-answers answers))))
+      (any (lambda (u) (equal? (user-account-password u) "$6$salt$hash")) users)))
 
   (test-equal "the file systems are addressed by label"
     '("gradus-root" "GRADUS-ESP")

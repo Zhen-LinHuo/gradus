@@ -14,7 +14,7 @@
             answers-error?))
 
 (define %known-keys
-  '(schema-version profile locale timezone keyboard host-name
+  '(schema-version profile locale timezone keyboard host-name root-password
     proxy source storage assemble boot network users software))
 
 (define %required-keys '(schema-version profile storage users))
