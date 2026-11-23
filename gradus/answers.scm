@@ -10,6 +10,7 @@
   #:use-module (srfi srfi-35)
   #:export (read-answers
             validate-answers
+            answers-error
             answers-error?))
 
 (define %known-keys
