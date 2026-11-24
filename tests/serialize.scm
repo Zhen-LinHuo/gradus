@@ -5,6 +5,9 @@
 
 (use-modules (srfi srfi-64)
              (gnu bootloader)
+             (gnu system keyboard)
+             (gnu services)
+             (gnu services networking)
              (gnu system shadow)
              (gnu system)
              (gradus serialize))
@@ -17,6 +20,8 @@
       (profile . "headless")
       (host-name . "vm0")
       (timezone . "UTC")
+      (keyboard . "us")
+      (ntp . #t)
       (locale . "en_US.utf8")
       (storage (mode . simple) (disk . "/dev/vda"))
       (boot (bootloader . grub-efi) (timeout . 5))
@@ -42,6 +47,15 @@
 
   (test-equal "both file systems are present" 2
     (length (operating-system-file-systems os)))
+
+  (test-equal "the keyboard layout is rendered"
+    "us"
+    (keyboard-layout-name (operating-system-keyboard-layout os)))
+
+  (test-assert "NTP is rendered when the answers ask for it"
+    (memq 'ntp (map (lambda (service)
+                      (service-type-name (service-kind service)))
+                    (operating-system-services os))))
 
   (test-equal "one user is present" 1
     (length (operating-system-users os)))

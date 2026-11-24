@@ -10,6 +10,7 @@
   #:use-module (gnu system)
   #:use-module (gnu system shadow)
   #:use-module (gnu packages)
+  #:use-module (gnu system keyboard)
   #:use-module (gnu system file-systems)
   #:use-module (gnu system mapped-devices)
   #:use-module (gnu system uuid)
@@ -299,6 +300,8 @@ plain record: nothing is installed by this procedure."
       (timezone (or (assq-ref answers 'timezone) "UTC"))
       (locale (or (assq-ref answers 'locale) "en_US.utf8"))
       (kernel linux-libre)
+      (keyboard-layout
+       (and=> (assq-ref answers 'keyboard) (lambda (name) (keyboard-layout name))))
       (kernel-arguments (or (assq-ref boot 'extra-kernel-arguments) '()))
       (packages (append (answer-packages answers) %base-packages))
       (bootloader (boot-record boot (assq-ref storage 'disk)))
@@ -312,11 +315,14 @@ plain record: nothing is installed by this procedure."
                                       'grub-efi)))
                             (data-volume-file-systems storage)))
       (services
-       (cons* (service openssh-service-type)
-              (service dhcpcd-service-type)
-              (modify-services %base-services
-                (guix-service-type config =>
-                                   ((guix-service-for answers) config)))))
+       (append (list (service openssh-service-type)
+                     (service dhcpcd-service-type))
+               (if (assq-ref answers 'ntp)
+                   (list (service ntp-service-type))
+                   '())
+               (modify-services %base-services
+                 (guix-service-type config =>
+                                    ((guix-service-for answers) config)))))
       ;; No `groups' field: the default (%base-groups) already carries root,
       ;; wheel and users, and replacing it would strip system accounts of
       ;; theirs.
