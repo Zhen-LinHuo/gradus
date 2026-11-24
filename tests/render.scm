@@ -228,4 +228,18 @@
       (lambda args #t)))
 
 
+
+  (test-equal "a serial console survives into the bootloader record"
+    '((console serial) (serial) 0 115200)
+    (let ((config (operating-system-bootloader
+                   (render-answers
+                    (with-key 'boot
+                              '((bootloader . grub-efi) (timeout . 5)
+                                (terminal-outputs console serial)
+                                (terminal-inputs serial)))))))
+      (list (bootloader-configuration-terminal-outputs config)
+            (bootloader-configuration-terminal-inputs config)
+            (bootloader-configuration-serial-unit config)
+            (bootloader-configuration-serial-speed config))))
+
 (exit (if (zero? (test-runner-fail-count runner)) 0 1))

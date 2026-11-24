@@ -75,6 +75,37 @@ whose first form is not a pair is an answers error."
     (unless (and (pair? storage) (answer-ref storage 'disk))
       (answers-error "storage must name a disk"))))
 
+(define %terminals
+  '(console serial serial_0 serial_1 serial_2 serial_3
+    gfxterm vga_text mda_text morse spkmodem
+    at_keyboard usb_keyboard))
+
+(define (check-boot answers)
+  "Refuse terminal and serial settings GRUB could not honour.  A typo here
+would leave a headless machine with no console at boot, which is not something
+the operator can repair without physical access."
+  (let ((boot (answer-ref answers 'boot)))
+    (when boot
+      (for-each
+       (lambda (key)
+         (let ((terminals (answer-ref boot key)))
+           (when terminals
+             (unless (list? terminals)
+               (answers-error (format #f "~a must be a list" key)))
+             (for-each (lambda (terminal)
+                         (unless (memq terminal %terminals)
+                           (answers-error
+                            (format #f "unknown terminal in ~a: ~a" key terminal))))
+                       terminals))))
+       '(terminal-outputs terminal-inputs))
+      (for-each
+       (lambda (key)
+         (let ((value (answer-ref boot key)))
+           (when value
+             (unless (and (integer? value) (>= value 0))
+               (answers-error (format #f "~a must be a non-negative integer" key))))))
+       '(serial-unit serial-speed timeout)))))
+
 (define (check-storage answers)
   "Refuse storage combinations the installer cannot honour.  The check runs
 before anything is written to a disk: finding out after partitioning that the
@@ -116,4 +147,5 @@ answers error listing the first problem found."
   (check-required-keys answers)
   (check-values answers)
   (check-storage answers)
+  (check-boot answers)
   answers)

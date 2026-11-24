@@ -6,6 +6,10 @@
 (use-modules (srfi srfi-64)
              (gradus answers))
 
+(define (with-key key value alist)
+  "Shadow an existing key so that assq-ref finds the replacement first."
+  (acons key value alist))
+
 (define runner (test-runner-simple))
 (test-with-runner runner
 
@@ -14,6 +18,7 @@
       (profile . "headless")
       (storage (mode . simple) (disk . "/dev/vda"))
       (users ((name . "tester") (group . "users")))))
+
 
   (test-assert "a minimal answer file validates"
     (validate-answers (copy-tree minimal)))
@@ -94,6 +99,17 @@
       (lambda ()
         (validate-answers
          (append minimal '((users ()))))
+        #f)
+      (lambda args #t))))
+
+
+(test-with-runner runner
+  (test-assert "a terminal GRUB does not know is refused"
+    (catch #t
+      (lambda ()
+        (validate-answers
+         (with-key 'boot '((bootloader . grub-efi)
+                           (terminal-outputs console klingon))))
         #f)
       (lambda args #t))))
 

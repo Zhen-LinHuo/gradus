@@ -116,4 +116,35 @@
                           "/gradus-refused.scm")
            encrypted (copy-tree device-map)))))
 
+
+(define serial-answers
+  (acons 'boot '((bootloader . grub-efi) (timeout . 5)
+                 (terminal-outputs console serial)
+                 (terminal-inputs serial))
+         answers))
+
+(define serial-file (string-append (or (getenv "TMPDIR") "/tmp")
+                                   "/gradus-serialized-serial.scm"))
+(serialize-to-file serial-file serial-answers device-map)
+(define serial-os (load serial-file))
+
+(define (slurp file)
+  (call-with-input-file file
+    (lambda (port)
+      (let loop ((chars '()))
+        (let ((c (read-char port)))
+          (if (eof-object? c)
+              (list->string (reverse chars))
+              (loop (cons c chars))))))))
+
+(test-assert "the serial terminals reach the generated declaration"
+  (string-contains (slurp serial-file)
+                   "(terminal-outputs '(console serial))"))
+
+(test-equal "the generated declaration speaks serial at 115200"
+  '(0 115200)
+  (let ((config (operating-system-bootloader serial-os)))
+    (list (bootloader-configuration-serial-unit config)
+          (bootloader-configuration-serial-speed config))))
+
 (exit (if (zero? (test-runner-fail-count runner)) 0 1))

@@ -149,7 +149,22 @@ carry no `cryptomount' line and the machine could not boot."
                      (bootloader-configuration-targets
                       (operating-system-bootloader os)))
                 " "))
-       (format port "    (timeout ~a)))~%" (or (assq-ref boot 'timeout) 5))
+       (format port "    (timeout ~a)~%" (or (assq-ref boot 'timeout) 5))
+       ;; A headless machine reads the menu and answers the passphrase prompt
+       ;; on the serial line, so the terminals have to survive serialisation.
+       (let* ((outputs (or (assq-ref boot 'terminal-outputs) '()))
+              (inputs (or (assq-ref boot 'terminal-inputs) '()))
+              (serial? (or (memq 'serial outputs) (memq 'serial inputs))))
+         (when (pair? outputs)
+           (format port "    (terminal-outputs '~s)~%" outputs))
+         (when (pair? inputs)
+           (format port "    (terminal-inputs '~s)~%" inputs))
+         (when serial?
+           (format port "    (serial-unit ~a)~%"
+                   (or (assq-ref boot 'serial-unit) 0))
+           (format port "    (serial-speed ~a)~%"
+                   (or (assq-ref boot 'serial-speed) 115200))))
+       (format port "    ))~%")
        (format port "  (file-systems~%")
        (format port "   (list~%")
        (for-each (lambda (fs) (emit-file-system port fs))
