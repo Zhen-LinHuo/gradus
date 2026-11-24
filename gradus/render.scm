@@ -28,6 +28,7 @@
             %esp-label
             render-answers
             render-answers/devices
+            crypt-container-known?
             proxy-environment))
 
 ;;; The labels are the contract between the storage step, which creates them
@@ -52,6 +53,29 @@
   (map specification->package
        (or (assq-ref (assq-ref answers 'software) 'extra-packages) '())))
 
+(define (boot-serial? boot)
+  "True when GRUB is asked to talk on a serial line."
+  (any (lambda (key)
+         (let ((terminals (assq-ref boot key)))
+           (and (pair? terminals) (memq 'serial terminals))))
+       '(terminal-outputs terminal-inputs)))
+
+(define (make-bootloader-config bootloader targets timeout boot)
+  "Build a bootloader-configuration carrying the terminals and the serial
+line settings.  Without them a headless machine can neither see the menu nor
+answer the passphrase prompt of an encrypted root."
+  (let ((serial? (boot-serial? boot)))
+    (bootloader-configuration
+     (bootloader bootloader)
+     (targets targets)
+     (timeout timeout)
+     (terminal-outputs (or (assq-ref boot 'terminal-outputs) '()))
+     (terminal-inputs (or (assq-ref boot 'terminal-inputs) '()))
+     ;; GRUB needs a `serial' command before that terminal can be selected,
+     ;; and the command takes the unit and the speed.
+     (serial-unit (or (assq-ref boot 'serial-unit) (and serial? 0)))
+     (serial-speed (or (assq-ref boot 'serial-speed) (and serial? 115200))))))
+
 (define (boot-record boot disk)
   "Translate the boot section of an answer file into a
 bootloader-configuration.  `none' is a deliberate value, but the renderer does
@@ -62,22 +86,20 @@ larger change than this slice."
     (cond ((eq? kind 'none)
            (answers-error "bootloader `none' is not implemented by the renderer yet"))
           ((eq? kind 'grub-efi)
-           (bootloader-configuration
-            (bootloader grub-efi-bootloader)
-            (targets (list "/boot/efi"))
-            (timeout timeout)))
+           (make-bootloader-config grub-efi-bootloader
+                                   (list "/boot/efi") timeout boot))
           ((eq? kind 'grub-bios)
            ;; BIOS GRUB is installed into a *device*, never into a directory:
            ;; a target that is not a device path (a mount point, say) would be
            ;; turned into /dev/boot/efi and grub-install would refuse it.  Fall
            ;; back to the disk that holds the system.
            (let ((target (assq-ref boot 'target)))
-             (bootloader-configuration
-              (bootloader grub-bootloader)
-              (targets (list (if (and target (string-prefix? "/dev/" target))
-                                 target
-                                 disk)))
-              (timeout timeout))))
+             (make-bootloader-config
+              grub-bootloader
+              (list (if (and target (string-prefix? "/dev/" target))
+                        target
+                        disk))
+              timeout boot)))
           (else
            (answers-error (format #f "unsupported bootloader: ~a" kind))))))
 
@@ -210,6 +232,29 @@ an explicit error."
               (answers-error (format #f "unknown assembly kind: ~a" kind))))))
    (or (assq-ref answers 'assemble) '())))
 
+(define (crypt-source device-map)
+  "The source of the root LUKS container: its LUKS UUID when the storage step
+read one back.  GRUB only emits a cryptomount command for a UUID source, so a
+device path is not a weaker alternative — it is an unbootable declaration.  A
+missing entry means nothing has been prepared yet (review, `--dry-run'); the
+serializer refuses to write such a declaration rather than guessing."
+  (let ((entry (assoc-ref device-map "gradus-crypt")))
+    (and entry (assq-ref entry 'uuid)
+         (uuid (assq-ref entry 'uuid) 'luks))))
+
+(define (crypt-container-known? device-map)
+  "True when DEVICE-MAP carries the LUKS container's UUID."
+  (let ((entry (assoc-ref device-map "gradus-crypt")))
+    (and entry (assq-ref entry 'uuid))))
+
+(define (root-mapped-device answers device-map)
+  "The mapped device that opens the encrypted root described by ANSWERS, using
+DEVICE-MAP for the container's identity."
+  (mapped-device
+   (source (crypt-source device-map))
+   (targets (list (crypt-name answers)))
+   (type luks-device-mapping)))
+
 (define (data-volume-device spec fs-type)
   "Turn a data-volume device specification into a file-system device.  The
 spec is `uuid:STRING' or `label:STRING'; a UUID is preferred because a label
@@ -321,26 +366,18 @@ plain record: nothing is installed by this procedure."
       (bootloader (boot-record boot (assq-ref storage 'disk)))
       (mapped-devices
        (append (if (eq? mode 'lvm) (lvm-mapped-devices storage) '())
-               (if (encryption answers)
-                   (list (mapped-device
-                          (source (assq-ref (assoc-ref device-map "gradus-crypt")
-                                            'device))
-                          (targets (list (crypt-name answers)))
-                          (type luks-device-mapping)))
+               ;; Only when the container's UUID is known: a mapped device
+               ;; without one cannot be unlocked by GRUB, and the serializer
+               ;; refuses to write it.
+               (if (and (encryption answers)
+                        (crypt-container-known? device-map))
+                   (list (root-mapped-device answers device-map))
                    '())
                (render-assemble answers)))
       (swap-devices
        (if (> (swap-size answers) 0)
            (list (swap-space
-                  (target (file-system-label "gradus-swap"))
-                  (dependencies (if (encryption answers)
-                                    (list (mapped-device
-                                           (source (assq-ref
-                                                    (assoc-ref device-map "gradus-crypt")
-                                                    'device))
-                                           (targets (list (crypt-name answers)))
-                                           (type luks-device-mapping)))
-                                    '()))))
+                  (target (file-system-label "gradus-swap"))))
            '()))
       (file-systems (append (if (eq? mode 'lvm)
                                 (lvm-file-systems storage device-map)

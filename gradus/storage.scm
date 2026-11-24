@@ -199,8 +199,14 @@ for, is LUKS1 because GRUB has to read the root file system at boot."
        ;; render needs the underlying partition for mapped-device, which blkid
        ;; cannot tell from the mapper's own label.
        (if encryption
-           (list (cons "gradus-crypt"
-                       (list (cons 'device root-part) (cons 'type "luks"))))
+           (let-values (((status output)
+                         (run-command "cryptsetup" "luksUUID" root-part)))
+             (unless (zero? status)
+               (error "cryptsetup luksUUID failed" root-part))
+             (list (cons "gradus-crypt"
+                         (list (cons 'device root-part)
+                               (cons 'type "crypto_LUKS")
+                               (cons 'uuid (string-trim-both output))))))
            '())))))
 
 (define (volume-group storage)
