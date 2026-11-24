@@ -169,3 +169,31 @@ state of the target as it actually is, not as it was intended to be.
   general-purpose form generator over arbitrary Scheme records is a different
   project and a worse one.
 - Any page whose content depends on a site, a fleet or a vendor.
+
+## Comparison with Anaconda and Agama
+
+Checked against Anaconda's Installation Summary spokes (AlmaLinux/RHEL) and
+Agama/YaST (openSUSE Tumbleweed).  What the two reference installers have that
+this page set must also have, or must refuse explicitly:
+
+| Concern | Anaconda | Agama/YaST | Gradus |
+| --- | --- | --- | --- |
+| Keyboard layout | spoke | yes | **missing — goes on the locale page** |
+| NTP on/off | with Time & Date | implicit | **missing — goes on the locale page** |
+| Timezone | spoke | yes | yes |
+| Installation source | media / network | product + registration | substitutes + channels (Guix is network-first; no local media) |
+| Software selection | base environment + add-ons | patterns | base + free-form packages; profiles *(planned)* |
+| Partition **sizes** | custom partitioning | limited (a known Agama gap) | **must be explicit** — ESP default 1 GiB is overridable, root is a size or the remainder |
+| LUKS encryption | yes | yes | **missing — mapped-devices are native in Guix** |
+| Swap | automatic | yes | **missing — none or an explicit size** |
+| Network interface choice, static addressing | spoke | yes | DHCP only today; static + interface **planned** |
+| Root password / lock | spoke | yes | yes |
+| User + "make administrator" | spoke | yes | yes (wheel) |
+| KDUMP | spoke | yes | **refused** — not part of a headless contract |
+| Security policy | RHEL only | no | **refused** — vendor concept |
+| Bootloader page (menu, NVRAM update) | implicit | YaST yes | timeout + kernel arguments; NVRAM update *(planned)* |
+| "Test this source" | no | no | specified, not yet implemented |
+
+The two refusals follow from the contract: Gradus installs headless machines
+for this fleet, and a vendor security policy or a crash-dump daemon is a
+distribution decision, not an installer page.
