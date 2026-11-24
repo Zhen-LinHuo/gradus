@@ -11,6 +11,8 @@
   #:use-module (gnu system shadow)
   #:use-module (gnu packages)
   #:use-module (gnu system keyboard)
+  #:use-module (gnu system mapped-devices)
+  #:use-module (gnu system file-systems)
   #:use-module (gnu system file-systems)
   #:use-module (gnu system mapped-devices)
   #:use-module (gnu system uuid)
@@ -34,6 +36,16 @@
 
 (define %root-label "gradus-root")
 (define %esp-label "GRADUS-ESP")
+
+(define (encryption answers)
+  "The encryption section of the answers, or #f."
+  (assq-ref (assq-ref answers 'storage) 'encryption))
+
+(define (crypt-name answers)
+  (or (assq-ref (encryption answers) 'name) "cryptroot"))
+
+(define (swap-size answers)
+  (or (assq-ref (assq-ref answers 'storage) 'swap-size) 0))
 
 (define (answer-packages answers)
   "Extra packages the operator asked for, as package records."
@@ -118,7 +130,7 @@ map is keyed by label strings, so the lookup is by `assoc-ref'."
               (file-system-label label)))
         (file-system-label label))))
 
-(define (simple-file-systems device-map efi?)
+(define (simple-file-systems answers device-map efi?)
   "The file systems for `simple' storage mode: one ext4 root, plus an EFI
 system partition on an EFI machine.  A BIOS machine has a BIOS Boot partition
 instead, which carries no file system and is not mounted.  Devices are
@@ -126,7 +138,9 @@ addressed by UUID when the map knows them, by label otherwise."
   (append
    (list (file-system
            (mount-point "/")
-           (device (file-system-by-label %root-label "ext4" device-map))
+           (device (if (encryption answers)
+                       (string-append "/dev/mapper/" (crypt-name answers))
+                       (file-system-by-label %root-label "ext4" device-map)))
            (type "ext4")))
    (if efi?
        (list (file-system
@@ -305,12 +319,33 @@ plain record: nothing is installed by this procedure."
       (kernel-arguments (or (assq-ref boot 'extra-kernel-arguments) '()))
       (packages (append (answer-packages answers) %base-packages))
       (bootloader (boot-record boot (assq-ref storage 'disk)))
-      (mapped-devices (append (if (eq? mode 'lvm) (lvm-mapped-devices storage) '())
-                              (render-assemble answers)))
+      (mapped-devices
+       (append (if (eq? mode 'lvm) (lvm-mapped-devices storage) '())
+               (if (encryption answers)
+                   (list (mapped-device
+                          (source (assq-ref (assoc-ref device-map "gradus-crypt")
+                                            'device))
+                          (targets (list (crypt-name answers)))
+                          (type luks-device-mapping)))
+                   '())
+               (render-assemble answers)))
+      (swap-devices
+       (if (> (swap-size answers) 0)
+           (list (swap-space
+                  (target (file-system-label "gradus-swap"))
+                  (dependencies (if (encryption answers)
+                                    (list (mapped-device
+                                           (source (assq-ref
+                                                    (assoc-ref device-map "gradus-crypt")
+                                                    'device))
+                                           (targets (list (crypt-name answers)))
+                                           (type luks-device-mapping)))
+                                    '()))))
+           '()))
       (file-systems (append (if (eq? mode 'lvm)
                                 (lvm-file-systems storage device-map)
                                 (simple-file-systems
-                                 device-map
+                                 answers device-map
                                  (eq? (assq-ref boot 'bootloader)
                                       'grub-efi)))
                             (data-volume-file-systems storage)))

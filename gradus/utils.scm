@@ -15,7 +15,8 @@
             log-line
             log-open
             run-command
-            run-command/stream))
+            run-command/stream
+            with-secret-file))
 
 ;;; Exit statuses, as documented in docs/contract.md §7.
 
@@ -53,6 +54,22 @@ exit status and the output as a string."
                          (loop (cons line lines))))))
          (status (close-pipe port)))
     (values (status:exit-val status) output)))
+
+(define (with-secret-file content thunk)
+  "Call THUNK with the path of a 0600 temporary file holding CONTENT, removed
+afterwards.  Used for key material that must not appear on a command line:
+/dev/shm keeps it in memory, never on disk."
+  (let ((path (string-append "/dev/shm/gradus-secret-"
+                             (number->string (getpid)) "-"
+                             (number->string (random 1000000)))))
+    (let ((port (open-file path "w")))
+      (chmod path #o600)
+      (display content port)
+      (close-port port))
+    (dynamic-wind
+      (lambda () #t)
+      (lambda () (thunk path))
+      (lambda () (when (file-exists? path) (delete-file path))))))
 
 (define (run-command/stream program . args)
   "Run PROGRAM with ARGS, inheriting standard output and error.  Return the

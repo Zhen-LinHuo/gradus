@@ -17,7 +17,8 @@
              (gradus wizard))
 
 (define runner (test-runner-simple))
-(test-with-runner runner
+(test-runner-current runner)
+
 
   (define answers
     '((schema-version . 1)
@@ -180,6 +181,7 @@
       (lambda ()
         (render-answers (with-key 'boot '((bootloader . none))))
         #f)
-      (lambda args #t))))
+      (lambda args #t)))
+
 
 (exit (if (zero? (test-runner-fail-count runner)) 0 1))
