@@ -8,6 +8,7 @@
   #:use-module (gnu bootloader)
   #:use-module (gnu packages linux)
   #:use-module (gnu system)
+  #:use-module (gnu system shadow)
   #:use-module (gnu system file-systems)
   #:use-module (gnu system mapped-devices)
   #:use-module (gnu system uuid)
@@ -60,10 +61,6 @@ larger change than this slice."
               (timeout timeout))))
           (else
            (answers-error (format #f "unsupported bootloader: ~a" kind))))))
-
-(define (answer-groups answers)
-  "User groups declared in the answers beyond the two every install has."
-  (or (assq-ref answers 'groups) '()))
 
 (define (answer-users users)
   "Map the answer users onto user-account records.  Every user gets the
@@ -312,13 +309,10 @@ plain record: nothing is installed by this procedure."
               (modify-services %base-services
                 (guix-service-type config =>
                                    ((guix-service-for answers) config)))))
-      (users (cons (root-account answers) (answer-users users)))
-      ;; The accounts' supplementary groups must be declared; the two every
-      ;; installation needs are wheel (administration) and users.
-      (groups (cons* (user-group (name "root") (system? #t))
-                     (user-group (name "wheel"))
-                     (user-group (name "users"))
-                     (answer-groups answers))))))
+      ;; No `groups' field: the default (%base-groups) already carries root,
+      ;; wheel and users, and replacing it would strip system accounts of
+      ;; theirs.
+      (users (cons (root-account answers) (answer-users users))))))
 
 (define (render-answers answers)
   "Render ANSWERS without a device map: file systems fall back to labels."

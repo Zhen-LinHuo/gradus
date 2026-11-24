@@ -28,7 +28,7 @@
   (format port "      (name ~s)~%" (assq-ref user (quote name)))
   (format port "      (group ~s)~%" (or (assq-ref user (quote group)) "users"))
   (format port "      (supplementary-groups (quote ~s))~%"
-          (or (assq-ref user (quote groups)) (quote (wheel))))
+          (or (assq-ref user (quote groups)) (list "wheel")))
   (format port "      (home-directory ~s)~%"
           (string-append "/home/" (assq-ref user (quote name))))
   ;; The password is already a crypt hash; without it the account is
@@ -112,9 +112,6 @@
        (format port "   (list~%")
        (for-each (lambda (user) (emit-user port user)) users)
        (format port "   ))~%")
-       (format port "  (groups (cons* (user-group (name \"root\") (system? #t))~%")
-       (format port "                  (user-group (name \"wheel\"))~%")
-       (format port "                  (user-group (name \"users\"))))~%")
        (emit-services port answers)
        (format port ")~%")))))
 
