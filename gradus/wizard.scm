@@ -23,8 +23,11 @@
 
 ;; The order a human meets the questions in.  `install' is not a question: it
 ;; is the gate the operator walks through when every page is answered.
+;; The order follows YaST's flow, not Agama's: keyboard and disk come early,
+;; the source is chosen before the software that will be fetched from it, and
+;; the system-wide settings (timezone, NTP) sit near the end.
 (define %wizard-steps
-  '(language locale source storage boot software network users review install))
+  '(language locale storage source software boot network users review install))
 
 ;; A wizard holds three things: the answers collected so far, the current step,
 ;; and the interface language.  The language is deliberately *not* an answer:

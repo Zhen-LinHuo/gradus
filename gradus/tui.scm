@@ -33,6 +33,7 @@
      (password . "用户密码") (password-again . "再输一次")
      (root-password . "root 密码")
      (timezone . "时区") (locale . "语言区域")
+     (keyboard . "键盘布局") (ntp . "启用 NTP 对时？(y/n)")
      (bootloader . "引导器") (timeout . "菜单等待秒数")
      (kernel-args . "额外内核参数（空格分隔）")
      (packages . "额外软件包（空格分隔，可留空）")
@@ -51,6 +52,7 @@
      (password . "User password") (password-again . "Again")
      (root-password . "Root password")
      (timezone . "Timezone") (locale . "Locale")
+     (keyboard . "Keyboard layout") (ntp . "Enable NTP time sync? (y/n)")
      (bootloader . "Bootloader") (timeout . "Menu timeout (seconds)")
      (kernel-args . "Extra kernel arguments (space separated)")
      (packages . "Extra packages (space separated, may be empty)")
@@ -241,14 +243,28 @@ see why: hiding a disk they expect is worse than showing it with a warning."
   (format #f "$6$~a" (number->string (+ (current-time) (getpid)) 16)))
 
 (define (page-locale win wizard)
-  (let ((timezone (ask wizard win 3 (tr wizard 'timezone) "UTC")))
-    (if (back? timezone)
+  (let ((keyboard (ask wizard win 3 (tr wizard 'keyboard) "us")))
+    (if (back? keyboard)
         (wizard-back wizard)
-        (let ((locale (ask wizard win 6 (tr wizard 'locale) "en_US.utf8")))
-          (if (back? locale)
+        (let ((timezone (ask wizard win 6 (tr wizard 'timezone) "UTC")))
+          (if (back? timezone)
               (wizard-back wizard)
-              (wizard-next (wizard-set (wizard-set wizard 'timezone timezone)
-                                       'locale locale)))))))
+              (let ((locale (ask wizard win 9 (tr wizard 'locale) "en_US.utf8")))
+                (if (back? locale)
+                    (wizard-back wizard)
+                    (let ((ntp (ask wizard win 12 (tr wizard 'ntp) "y")))
+                      (if (back? ntp)
+                          (wizard-back wizard)
+                          (let ((ntp-on (not (member (string-downcase ntp)
+                                                     '("n" "no")))))
+                            (wizard-next
+                             (wizard-set
+                              (wizard-set
+                               (wizard-set
+                                (wizard-set wizard 'keyboard keyboard)
+                                'timezone timezone)
+                               'locale locale)
+                              'ntp ntp-on))))))))))))
 
 (define (page-source win wizard)
   (let* ((url (ask wizard win 3 (tr wizard 'substitute)
@@ -348,9 +364,11 @@ see why: hiding a disk they expect is worse than showing it with a warning."
     (put win 7 2 (format #f "accounts    : root, ~a"
                          (string-join (map (lambda (u) (assq-ref u 'name)) users)
                                       ", ")))
-    (put win 8 2 (format #f "timezone    : ~a / ~a"
+    (put win 8 2 (format #f "system      : ~a, ~a, keyboard ~a, NTP ~a"
                          (or (assq-ref a 'timezone) "UTC")
-                         (or (assq-ref a 'locale) "en_US.utf8")))
+                         (or (assq-ref a 'locale) "en_US.utf8")
+                         (or (assq-ref a 'keyboard) "us")
+                         (if (assq-ref a 'ntp) "on" "off")))
     (put win 9 2 (format #f "kernel args : ~a"
                          (string-join (or (assq-ref boot 'extra-kernel-arguments)
                                           '())
