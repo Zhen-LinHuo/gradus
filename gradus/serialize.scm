@@ -25,12 +25,17 @@
 
 (define (emit-user port user)
   (format port "    (user-account~%")
-  (format port "      (name ~s)~%" (assq-ref user 'name))
-  (format port "      (group ~s)~%" (or (assq-ref user 'group) "users"))
-  (format port "      (supplementary-groups '~s)~%"
-          (or (assq-ref user 'groups) '("wheel")))
-  (format port "      (home-directory ~s))~%"
-          (string-append "/home/" (assq-ref user 'name))))
+  (format port "      (name ~s)~%" (assq-ref user (quote name)))
+  (format port "      (group ~s)~%" (or (assq-ref user (quote group)) "users"))
+  (format port "      (supplementary-groups (quote ~s))~%"
+          (or (assq-ref user (quote groups)) (quote (wheel))))
+  (format port "      (home-directory ~s)~%"
+          (string-append "/home/" (assq-ref user (quote name))))
+  ;; The password is already a crypt hash; without it the account is
+  ;; locked, so the field is only emitted when an answer provides one.
+  (when (assq-ref user (quote password))
+    (format port "      (password ~s)~%" (assq-ref user (quote password))))
+  (format port "      )~%"))
 
 (define (emit-file-system port fs)
   (let ((device (file-system-device fs)))
