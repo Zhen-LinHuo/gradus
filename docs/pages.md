@@ -184,8 +184,8 @@ this page set must also have, or must refuse explicitly:
 | Installation source | media / network | product + registration | substitutes + channels (Guix is network-first; no local media) |
 | Software selection | base environment + add-ons | patterns | base + free-form packages; profiles *(planned)* |
 | Partition **sizes** | custom partitioning | limited (a known Agama gap) | **must be explicit** — ESP default 1 GiB is overridable, root is a size or the remainder |
-| LUKS encryption | yes | yes | **missing — mapped-devices are native in Guix** |
-| Swap | automatic | yes | **missing — none or an explicit size** |
+| LUKS encryption | yes | yes | yes (LUKS1, root only — GRUB unlocks by UUID; LVM and swap combinations refused) |
+| Swap | automatic | yes | an explicit size, defaulting to the machine's memory (1–8 GiB); refused with encryption |
 | Network interface choice, static addressing | spoke | yes | DHCP only today; static + interface **planned** |
 | Root password / lock | spoke | yes | yes |
 | User + "make administrator" | spoke | yes | yes (wheel) |

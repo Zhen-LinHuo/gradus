@@ -49,6 +49,46 @@
         #f)
       (lambda args #t)))
 
+  (test-assert "an unsupported storage mode is rejected"
+    (catch #t
+      (lambda ()
+        (validate-answers
+         (append minimal '((storage (mode . raid) (disk . "/dev/vda")))))
+        #f)
+      (lambda args #t)))
+
+  (test-assert "LVM with encryption is rejected"
+    (catch #t
+      (lambda ()
+        (validate-answers
+         (append minimal
+                 '((storage (mode . lvm) (disk . "/dev/vda")
+                            (encryption (mode . luks) (name . "cryptroot")
+                                        (passphrase . "secret"))))))
+        #f)
+      (lambda args #t)))
+
+  (test-assert "encryption with a swap partition is rejected"
+    (catch #t
+      (lambda ()
+        (validate-answers
+         (append minimal
+                 '((storage (mode . simple) (disk . "/dev/vda") (swap-size . 1024)
+                            (encryption (mode . luks) (name . "cryptroot")
+                                        (passphrase . "secret"))))))
+        #f)
+      (lambda args #t)))
+
+  (test-assert "encryption without a passphrase is rejected"
+    (catch #t
+      (lambda ()
+        (validate-answers
+         (append minimal
+                 '((storage (mode . simple) (disk . "/dev/vda")
+                            (encryption (mode . luks) (name . "cryptroot"))))))
+        #f)
+      (lambda args #t)))
+
   (test-assert "an empty users list is rejected"
     (catch #t
       (lambda ()

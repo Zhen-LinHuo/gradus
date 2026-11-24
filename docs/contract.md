@@ -107,8 +107,12 @@ policies, and the renderer fills in everything else from the selected profile.
   (mode . simple)                 ; simple | lvm | existing
   (disk . "/dev/nvme0n1")
   (erase . #f)
-  (encrypt . #f)
-  (swap . file)                   ; none | file | partition
+  (esp-size . 1024)               ; MiB; the ESP (EFI) or BIOS Boot partition
+  (swap-size . 0)                 ; MiB; 0 means no swap partition
+  (root-size . 0)                 ; MiB; 0 means the rest of the disk
+  (encryption (mode . luks)       ; LUKS1 — GRUB must read the root at boot
+              (name . "cryptroot")
+              (passphrase . "…")) ; never written to the declaration
   (data-volumes . ()))            ; never formatted unless erase? is #t per volume
 
  (boot
@@ -156,6 +160,12 @@ Rules:
   values; the answer file is not rewritten to match.
 - The renderer is deterministic: the same answer file and the same profile at
   the same version produce the same declaration.
+- Encryption is refused where the installer cannot honour it, before anything
+  is written to a disk: with `lvm` storage, and together with a swap partition
+  (the swap would be plaintext outside the container). The passphrase is used
+  to format the container and is never written to the declaration; the
+  declaration carries the container's LUKS UUID, which is the only form GRUB
+  can unlock. A declaration without that UUID is not written.
 
 ### 4.1 Sources and trust
 

@@ -28,6 +28,7 @@
             %esp-label
             render-answers
             render-answers/devices
+            crypt-container-known?
             proxy-environment))
 
 ;;; The labels are the contract between the storage step, which creates them
@@ -210,6 +211,29 @@ an explicit error."
               (answers-error (format #f "unknown assembly kind: ~a" kind))))))
    (or (assq-ref answers 'assemble) '())))
 
+(define (crypt-source device-map)
+  "The source of the root LUKS container: its LUKS UUID when the storage step
+read one back.  GRUB only emits a cryptomount command for a UUID source, so a
+device path is not a weaker alternative — it is an unbootable declaration.  A
+missing entry means nothing has been prepared yet (review, `--dry-run'); the
+serializer refuses to write such a declaration rather than guessing."
+  (let ((entry (assoc-ref device-map "gradus-crypt")))
+    (and entry (assq-ref entry 'uuid)
+         (uuid (assq-ref entry 'uuid) 'luks))))
+
+(define (crypt-container-known? device-map)
+  "True when DEVICE-MAP carries the LUKS container's UUID."
+  (let ((entry (assoc-ref device-map "gradus-crypt")))
+    (and entry (assq-ref entry 'uuid))))
+
+(define (root-mapped-device answers device-map)
+  "The mapped device that opens the encrypted root described by ANSWERS, using
+DEVICE-MAP for the container's identity."
+  (mapped-device
+   (source (crypt-source device-map))
+   (targets (list (crypt-name answers)))
+   (type luks-device-mapping)))
+
 (define (data-volume-device spec fs-type)
   "Turn a data-volume device specification into a file-system device.  The
 spec is `uuid:STRING' or `label:STRING'; a UUID is preferred because a label
@@ -321,26 +345,18 @@ plain record: nothing is installed by this procedure."
       (bootloader (boot-record boot (assq-ref storage 'disk)))
       (mapped-devices
        (append (if (eq? mode 'lvm) (lvm-mapped-devices storage) '())
-               (if (encryption answers)
-                   (list (mapped-device
-                          (source (assq-ref (assoc-ref device-map "gradus-crypt")
-                                            'device))
-                          (targets (list (crypt-name answers)))
-                          (type luks-device-mapping)))
+               ;; Only when the container's UUID is known: a mapped device
+               ;; without one cannot be unlocked by GRUB, and the serializer
+               ;; refuses to write it.
+               (if (and (encryption answers)
+                        (crypt-container-known? device-map))
+                   (list (root-mapped-device answers device-map))
                    '())
                (render-assemble answers)))
       (swap-devices
        (if (> (swap-size answers) 0)
            (list (swap-space
-                  (target (file-system-label "gradus-swap"))
-                  (dependencies (if (encryption answers)
-                                    (list (mapped-device
-                                           (source (assq-ref
-                                                    (assoc-ref device-map "gradus-crypt")
-                                                    'device))
-                                           (targets (list (crypt-name answers)))
-                                           (type luks-device-mapping)))
-                                    '()))))
+                  (target (file-system-label "gradus-swap"))))
            '()))
       (file-systems (append (if (eq? mode 'lvm)
                                 (lvm-file-systems storage device-map)

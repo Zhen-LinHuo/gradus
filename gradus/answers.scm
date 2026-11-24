@@ -75,6 +75,28 @@ whose first form is not a pair is an answers error."
     (unless (and (pair? storage) (answer-ref storage 'disk))
       (answers-error "storage must name a disk"))))
 
+(define (check-storage answers)
+  "Refuse storage combinations the installer cannot honour.  The check runs
+before anything is written to a disk: finding out after partitioning that the
+result would be a plaintext disk or an unbootable declaration is too late."
+  (let* ((storage (answer-ref answers 'storage))
+         (mode (answer-ref storage 'mode))
+         (encryption (answer-ref storage 'encryption))
+         (swap (or (answer-ref storage 'swap-size) 0)))
+    (unless (memq mode '(simple lvm))
+      (answers-error
+       (format #f "storage mode ~a is not implemented; use `simple' or `lvm'"
+               mode)))
+    (when (and encryption (eq? mode 'lvm))
+      (answers-error
+       "encryption is not implemented for LVM storage yet; choose `simple' storage or drop the encryption section"))
+    (when (and encryption (> swap 0))
+      (answers-error
+       "an encrypted install cannot use a separate swap partition yet (swap would be plaintext); set swap-size to 0"))
+    (when encryption
+      (unless (non-empty-string? (answer-ref encryption 'passphrase))
+        (answers-error "encrypted storage needs a non-empty passphrase")))))
+
 (define (check-duplicates answers)
   "A repeated top-level key makes the file ambiguous; reject it."
   (let loop ((seen '()) (entries answers))
@@ -93,4 +115,5 @@ answers error listing the first problem found."
   (check-known-keys answers)
   (check-required-keys answers)
   (check-values answers)
+  (check-storage answers)
   answers)
