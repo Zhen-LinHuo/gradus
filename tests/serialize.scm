@@ -46,8 +46,8 @@
   (test-equal "one user is present" 1
     (length (operating-system-users os)))
 
-  (test-equal "the bootloader target is the storage disk, not a mount point"
-    '("/dev/vda")
+  (test-equal "an EFI bootloader targets the mounted ESP"
+    '("/boot/efi")
     (bootloader-configuration-targets (operating-system-bootloader os)))
 
   (test-equal "the account password survives serialization"
