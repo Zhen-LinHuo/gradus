@@ -14,11 +14,12 @@ give you: **the installer's output is a `config.scm`**, not an opaque system
 state. The machine is installed *from* that file, and the file is kept on the
 machine afterwards.
 
-＞ **Status: early development.** `--config` and `--answers` can install a
-＞ plain Guix System from a checkout (see *Running from a checkout* below).
-＞ The interactive wizard does not exist yet. The contract documents modes and
-＞ options that are specified but not implemented — every option the software
-＞ actually accepts is listed in this README and in `gradus --help`.
+> **Status: working, early.** An installation runs end to end on both
+> firmwares — BIOS (GRUB on the disk) and UEFI (GRUB in the ESP, boot entry in
+> NVRAM) — with partitioning, users and passwords, substitutes, and the
+> artefacts the contract promises.  A console wizard drives it; the graphical
+> and web front-ends do not exist yet.  Options the software does not implement
+> are marked *(planned)* below and in `gradus --help`.
 
 ## Running from a checkout
 
