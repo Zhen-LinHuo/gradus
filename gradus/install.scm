@@ -55,7 +55,7 @@ success; raise on the first failure."
     (exit +exit-validation+))
   (let ((os (load-configuration config-file)))
     (log-line "mounting the target beneath ~a" root)
-    (catch 'misc-error
+    (catch #t
       (lambda () (mount-plan (configuration-plan os) root))
       (lambda (key . args)
         (log-line "cannot prepare the target: ~a" args)
@@ -163,7 +163,7 @@ ANSWERS-FILE is where the answers are (or will be) recorded for provenance."
     (restart-guix-daemon-with-proxy answers)
     (serialize-to-file declaration answers device-map)
     (log-line "mounting the target beneath ~a" root)
-    (catch 'misc-error
+    (catch #t
       (lambda () (mount-plan (configuration-plan os) root))
       (lambda (key . args)
         (log-line "cannot prepare the target: ~a" args)

@@ -4,6 +4,7 @@
 ;;; This file is part of Gradus.
 
 (use-modules (srfi srfi-64)
+             (srfi srfi-35)
              (gradus answers))
 
 (define (with-key key value alist)
@@ -112,5 +113,25 @@
                            (terminal-outputs console klingon))))
         #f)
       (lambda args #t))))
+
+(test-with-runner runner
+  (test-assert "a rejected answer explains itself instead of failing on a struct"
+    (let ((message
+           (call/cc
+            (lambda (k)
+              (with-exception-handler
+               (lambda (obj)
+                 (k (if (message-condition? obj) (condition-message obj) #f)))
+               (lambda ()
+                 (validate-answers
+                  (list (cons 'schema-version 1)
+                        (cons 'profile "headless")
+                        (cons 'storage '((mode . simple) (disk . "/dev/vda")))
+                        (cons 'users '((name . "t") (group . "users")))
+                        (cons 'boot '((bootloader . grub-efi)
+                                      (terminal-outputs console klingon)))))
+                 #f))))))
+      (and (string? message)
+           (string-contains message "unknown terminal")))))
 
 (exit (if (zero? (test-runner-fail-count runner)) 0 1))

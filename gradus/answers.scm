@@ -4,6 +4,7 @@
 ;;; This file is part of Gradus.
 
 (define-module (gradus answers)
+  #:use-module (ice-9 exceptions)
   #:use-module (ice-9 format)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
@@ -23,7 +24,10 @@
   answers-error?)
 
 (define (answers-error message)
-  (raise (condition (&answers-error) (&message (message message)))))
+  ;; `raise' refuses a compound condition in Guile 3: it has to go through
+  ;; `raise-exception', or the caller only sees "wrong type" instead of the
+  ;; message we took care to write.
+  (raise-exception (condition (&answers-error) (&message (message message)))))
 
 (define (read-answers file)
   "Read FILE as a single S-expression and return it.  A missing file or a file

@@ -14,6 +14,7 @@
   #:use-module (ice-9 string-fun)
   #:use-module (srfi srfi-1)
   #:use-module (ice-9 match)
+  #:use-module (srfi srfi-35)
   #:export (main
             parse-arguments
             absolute-path
@@ -37,6 +38,11 @@ argument must be made absolute before it is loaded."
   (if (string-prefix? "/" path)
       path
       (string-append (getcwd) "/" path)))
+
+
+(define (readable-error obj)
+  "The message of a raised condition, or OBJ itself when it carries none."
+  (if (message-condition? obj) (condition-message obj) obj))
 
 (define (usage)
   "Print the command synopsis."
@@ -120,10 +126,12 @@ options and missing values are usage errors."
             (unless (zero? (getuid))
               (log-line "must run as root to install")
               (exit +exit-target+))
-            (catch 'misc-error
+            (catch #t
               (lambda () (install-answers answers-file root) 0)
               (lambda (key . args)
-                (log-line "answers installation failed: ~a" args)
+                (log-line "answers installation failed: ~a"
+                          (readable-error (if (null? args) key
+                                              (car args))))
                 (exit +exit-validation+))))))
     )
    ((assoc-ref opts 'config)
@@ -132,7 +140,7 @@ options and missing values are usage errors."
       (unless (file-exists? config)
         (log-line "no such configuration: ~a" config)
         (exit +exit-validation+))
-      (catch 'misc-error
+      (catch #t
         (lambda ()
           (let ((plan (configuration-plan (load-configuration config))))
             (if (assoc-ref opts 'dry-run?)
