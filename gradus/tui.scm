@@ -96,34 +96,101 @@
 
 ;; ----------------------------------------------------------------- input
 
+(define %back 'gradus-back)
+
+(define (quit!)
+  "Abandon the installer; the main loop restores the terminal."
+  (throw 'gradus-quit #t))
+
+(define (key-code k)
+  "guile-ncurses returns a character for ordinary keys and an integer for the
+special ones; compare everything as an integer."
+  (if (char? k) (char->integer k) k))
+
+(define (mask chars)
+  "The echo for a secret: one star per character."
+  (make-list (length chars) #\*))
+
+(define (insert-at chars pos ch)
+  (append (take chars pos) (list ch) (drop chars pos)))
+
+(define (delete-before chars pos)
+  (if (zero? pos) chars (append (take chars (- pos 1)) (drop chars pos))))
+
+(define (delete-at chars pos)
+  (if (>= pos (length chars)) chars
+      (append (take chars pos) (drop chars (+ pos 1)))))
+
+(define (draw-line win y x prompt chars pos show?)
+  "Paint PROMPT and the text, then put the cursor where the editing is."
+  (let* ((shown (if show? chars (mask chars)))
+         (len (+ x (string-length prompt) (length chars))))
+    (put win y x (string-append prompt (list->string shown)))
+    (move win y len)
+    (clrtoeol win)
+    ;; Place the cursor before refreshing, or the operator never sees it move.
+    (move win y (+ x (string-length prompt) pos))
+    (refresh win)))
+
+(define (read-line* win y x prompt initial show?)
+  "Edit a line: arrows and Home/End move the cursor, Backspace and Delete edit,
+Enter accepts, Esc goes back a page, Ctrl-C quits, and `q' on an empty line
+also quits.  The default is pre-filled so it can be edited rather than retyped."
+  (let loop ((chars (string->list (or initial "")))
+             (pos (length (string->list (or initial "")))))
+    (draw-line win y x prompt chars pos show?)
+    (let ((k (key-code (getch win))))
+      (cond ((or (= k 10) (= k 13)) (list->string chars))
+            ((= k 27) (throw 'gradus-back #t))
+            ((= k 3) (quit!))
+            ((and (= k 113) (null? chars)) (quit!))
+            ((or (= k KEY_BACKSPACE) (= k 127) (= k 8))
+             (loop (delete-before chars pos) (max 0 (- pos 1))))
+            ((= k KEY_DC) (loop (delete-at chars pos) pos))
+            ((= k KEY_LEFT) (loop chars (max 0 (- pos 1))))
+            ((= k KEY_RIGHT) (loop chars (min (length chars) (+ pos 1))))
+            ((= k KEY_HOME) (loop chars 0))
+            ((= k KEY_END) (loop chars (length chars)))
+            ((and (integer? k) (>= k 32) (< k 127))
+             (loop (insert-at chars pos (integer->char k)) (+ pos 1)))
+            (else (loop chars pos))))))
+
 (define (ask wizard win y label default)
-  "Draw LABEL with DEFAULT, read a line, and leave the cursor on the next row."
-  (put win y 2 (format #f "~a (~a): " label default))
-  (put win (+ y 1) 2 "> ")
-  (refresh win)
-  (let ((answer (getnstr win 200)))
-    (if (or (not answer) (string-null? answer)) default answer)))
+  "Ask for one line, pre-filled with DEFAULT."
+  (put win y 2 (format #f "~a (~a)" label default))
+  (read-line* win (+ y 1) 2 "> " default #t))
+
+(define (choose win y label options default-index)
+  "Pick one of OPTIONS with the arrow keys.  Returns the index."
+  (let loop ((selected default-index))
+    (put win y 2 label)
+    (let draw ((items options) (row (+ y 1)) (i 0))
+      (unless (null? items)
+        (put win row 2 (if (= i selected) "> " "  "))
+        (put win row 4 (car items))
+        (draw (cdr items) (+ row 1) (+ i 1))))
+    (put win (+ y 2 (length options)) 2 "(up/down, Enter; Esc back; q quit)")
+    (refresh win)
+    (let ((k (key-code (getch win))))
+      (cond ((or (= k 10) (= k 13)) selected)
+            ((= k 27) (throw 'gradus-back #t))
+            ((= k 3) (quit!))
+            ((= k 113) (quit!))
+            ((or (= k KEY_UP) (= k 107))
+             (loop (max 0 (- selected 1))))
+            ((or (= k KEY_DOWN) (= k 106))
+             (loop (min (- (length options) 1) (+ selected 1))))
+            ((and (>= k 49) (<= k 57) (<= (- k 49) (- (length options) 1)))
+             (loop (- k 49)))
+            (else (loop selected))))))
 
 (define (ask-number wizard win y label options default-index)
-  "Draw LABEL and numbered OPTIONS, then read a number.  Returns the index."
-  (let loop ()
-    (put win y 2 label)
-    (let index-loop ((items options) (row (+ y 1)) (n 1))
-      (unless (null? items)
-        (put win row 4 (format #f "~a ~a" n (car items)))
-        (index-loop (cdr items) (+ row 1) (+ n 1))))
-    (put win (+ y 1 (length options)) 2 (tr wizard 'choose))
-    (put win (+ y 2 (length options)) 2 "> ")
-    (refresh win)
-    (let* ((answer (getnstr win 8))
-           (n (and answer (string->number answer))))
-      (cond ((and (integer? n) (>= n 1) (<= n (length options))) (- n 1))
-            ((string-null? (or answer "")) default-index)
-            (else (loop))))))
+  "Pick one of OPTIONS; kept for the pages written before the menu widget."
+  (choose win y label options default-index))
 
 (define (back? value)
-  "Whether VALUE is the operator asking to go back one page."
-  (and (string? value) (equal? (string-downcase value) "b")))
+  "Retained for callers that still test a returned value."
+  (eq? value %back))
 
 ;; ----------------------------------------------------------------- pages
 
@@ -138,10 +205,8 @@
   (put win 2 2 "This installer runs in English on a text console.")
   (put win 4 2 "A Chinese interface is available in the graphical and web")
   (put win 5 2 "installers, which are not yet part of this release.")
-  (put win 7 2 "Press Enter to continue.")
-  (put win 9 2 "> ")
-  (refresh win)
-  (getnstr win 8)
+  (put win 7 2 "Press Enter to continue, q to quit.")
+  (read-line* win 9 2 "> " "" #t)
   (wizard-next (wizard-set-language wizard 1)))
 
 (define (%disk-name entry)
@@ -482,8 +547,15 @@ see why: hiding a disk they expect is worse than showing it with a warning."
             (lambda ()
               (loop (page win wizard)))
             (lambda (key . args)
-              (endwin)
-              (format (current-error-port) "page error at ~a: ~a ~s~%"
-                      (wizard-step wizard) key args)
-              1))))))
+              (cond
+               ((eq? key 'gradus-back) (loop (wizard-back wizard)))
+               ((eq? key 'gradus-quit)
+                (endwin)
+                (format (current-error-port) "Aborted; nothing was changed.~%")
+                130)
+               (else
+                (endwin)
+                (format (current-error-port) "page error at ~a: ~a ~s~%"
+                        (wizard-step wizard) key args)
+                1))))))))
     0))
