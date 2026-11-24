@@ -5,6 +5,7 @@
 
 (use-modules (srfi srfi-64)
              (gnu bootloader)
+             (gnu system shadow)
              (gnu system)
              (gradus serialize))
 
@@ -47,6 +48,14 @@
 
   (test-equal "the bootloader target is the storage disk, not a mount point"
     '("/dev/vda")
-    (bootloader-configuration-targets (operating-system-bootloader os))))
+    (bootloader-configuration-targets (operating-system-bootloader os)))
+
+  (test-equal "the account password survives serialization"
+    "$6$abcdefgh$3rj1vTLX64btReFsM4MQ22otcD40l7vbtw7qCyr0dxc4kxNmgx53xVM8gWiLYbCqTHTbXFaVFU7ZT28pnvdyu0"
+    (user-account-password (car (operating-system-users os))))
+
+  (test-equal "the groups the accounts refer to are declared"
+    (list "root" "wheel" "users")
+    (map user-group-name (operating-system-groups os))))
 
 (exit (if (zero? (test-runner-fail-count runner)) 0 1))
