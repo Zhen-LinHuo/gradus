@@ -32,6 +32,12 @@
      (users . "用户") (username . "用户名")
      (password . "用户密码") (password-again . "再输一次")
      (root-password . "root 密码")
+     (timezone . "时区") (locale . "语言区域")
+     (bootloader . "引导器") (timeout . "菜单等待秒数")
+     (kernel-args . "额外内核参数（空格分隔）")
+     (packages . "额外软件包（空格分隔，可留空）")
+     (hostname . "主机名") (management . "网络管理方式")
+     (back . "[b] 返回上一步")
      (review . "确认") (confirm . "开始安装？(y/n)")
      (installing . "正在安装，请勿关机……") (done . "安装完成")
      (choose . "输入序号后回车")
@@ -44,6 +50,12 @@
      (users . "User") (username . "User name")
      (password . "User password") (password-again . "Again")
      (root-password . "Root password")
+     (timezone . "Timezone") (locale . "Locale")
+     (bootloader . "Bootloader") (timeout . "Menu timeout (seconds)")
+     (kernel-args . "Extra kernel arguments (space separated)")
+     (packages . "Extra packages (space separated, may be empty)")
+     (hostname . "Host name") (management . "Network management")
+     (back . "[b] back")
      (review . "Review") (confirm . "Start the installation? (y/n)")
      (installing . "Installing; do not power off…")
      (done . "Installation finished")
@@ -99,6 +111,10 @@
             ((string-null? (or answer "")) default-index)
             (else (loop))))))
 
+(define (back? value)
+  "Whether VALUE is the operator asking to go back one page."
+  (and (string? value) (equal? (string-downcase value) "b")))
+
 ;; ----------------------------------------------------------------- pages
 
 (define (page-language win wizard)
@@ -117,25 +133,6 @@
   (refresh win)
   (getnstr win 8)
   (wizard-next (wizard-set-language wizard 1)))
-
-(define (page-source win wizard)
-  (let* ((url (ask wizard win 3 (tr wizard 'substitute)
-                   "https://ci.guix.gnu.org"))
-         (proxy (ask wizard win 6 (tr wizard 'proxy) ""))
-         (services (if (string-null? url)
-                       '()
-                       (list (list (cons 'name "primary")
-                                   (cons 'url url)
-                                   (cons 'kind 'official)))))
-         (source (append
-                  (if (null? services) '()
-                      (list (cons 'substitute-services services)))
-                  (if (string-null? proxy) '()
-                      (list (cons 'proxy
-                                  (list (cons 'http proxy)
-                                        (cons 'https proxy)
-                                        (cons 'no-proxy '("10.0.2.100")))))))))
-    (wizard-next (wizard-set wizard 'source source))))
 
 (define (%disk-name entry)
   (string-append "/dev/" entry))
@@ -243,6 +240,77 @@ see why: hiding a disk they expect is worse than showing it with a warning."
   "A salt for crypt, unique per run."
   (format #f "$6$~a" (number->string (+ (current-time) (getpid)) 16)))
 
+(define (page-locale win wizard)
+  (let ((timezone (ask wizard win 3 (tr wizard 'timezone) "UTC")))
+    (if (back? timezone)
+        (wizard-back wizard)
+        (let ((locale (ask wizard win 6 (tr wizard 'locale) "en_US.utf8")))
+          (if (back? locale)
+              (wizard-back wizard)
+              (wizard-next (wizard-set (wizard-set wizard 'timezone timezone)
+                                       'locale locale)))))))
+
+(define (page-source win wizard)
+  (let* ((url (ask wizard win 3 (tr wizard 'substitute)
+                   "https://ci.guix.gnu.org"))
+         (proxy (ask wizard win 6 (tr wizard 'proxy) "")))
+    (cond
+     ((back? url) (wizard-back wizard))
+     ((back? proxy) (wizard-back wizard))
+     (else
+      (let* ((services (if (string-null? url)
+                           '()
+                           (list (list (cons 'name "primary")
+                                       (cons 'url url)
+                                       (cons 'kind 'official)))))
+             (source (append
+                      (if (null? services) '()
+                          (list (cons 'substitute-services services)))
+                      (if (string-null? proxy) '()
+                          (list (cons 'proxy
+                                      (list (cons 'http proxy)
+                                            (cons 'https proxy)
+                                            (cons 'no-proxy '()))))))))
+        (wizard-next (wizard-set wizard 'source source)))))))
+
+(define (page-boot win wizard)
+  (let* ((default-index (if (eq? (firmware-bootloader) 'grub-efi) 1 0))
+         (choice (ask-number wizard win 3 (tr wizard 'bootloader)
+                             (list "grub-bios" "grub-efi") default-index))
+         (wait (ask wizard win 7 (tr wizard 'timeout) "5"))
+         (args (ask wizard win 10 (tr wizard 'kernel-args) "")))
+    (cond
+     ((back? wait) (wizard-back wizard))
+     ((back? args) (wizard-back wizard))
+     (else
+      (let* ((bootloader (if (zero? choice) 'grub-bios 'grub-efi))
+             (seconds (or (string->number wait) 5))
+             (arguments (if (string-null? args)
+                            '()
+                            (string-split args #\space)))
+             (boot (list (cons 'bootloader bootloader)
+                         (cons 'timeout seconds)
+                         (cons 'extra-kernel-arguments arguments))))
+        (wizard-next (wizard-set wizard 'boot boot)))))))
+
+(define (page-software win wizard)
+  (let ((names (ask wizard win 3 (tr wizard 'packages) "")))
+    (if (back? names)
+        (wizard-back wizard)
+        (wizard-next
+         (wizard-set wizard 'software
+                     (list (cons 'extra-packages
+                                 (if (string-null? names) '()
+                                     (string-split names #\space)))))))))
+
+(define (page-network win wizard)
+  (let ((name (ask wizard win 3 (tr wizard 'hostname) "gradus")))
+    (if (back? name)
+        (wizard-back wizard)
+        (wizard-next
+         (wizard-set (wizard-set wizard 'host-name name)
+                     'network (list (cons 'management 'dhcp)))))))
+
 (define (page-users win wizard)
   (let* ((name (ask wizard win 3 (tr wizard 'username) "user"))
          (password (ask-password wizard win 5 (tr wizard 'password)))
@@ -280,9 +348,20 @@ see why: hiding a disk they expect is worse than showing it with a warning."
     (put win 7 2 (format #f "accounts    : root, ~a"
                          (string-join (map (lambda (u) (assq-ref u 'name)) users)
                                       ", ")))
-    (put win 9 2 "Passwords are stored as hashes and are not displayed.")
-    (put win 12 2 (tr wizard 'confirm))
-    (put win 13 2 "> ")
+    (put win 8 2 (format #f "timezone    : ~a / ~a"
+                         (or (assq-ref a 'timezone) "UTC")
+                         (or (assq-ref a 'locale) "en_US.utf8")))
+    (put win 9 2 (format #f "kernel args : ~a"
+                         (string-join (or (assq-ref boot 'extra-kernel-arguments)
+                                          '())
+                                      " ")))
+    (put win 10 2 (format #f "packages    : ~a"
+                          (string-join
+                           (or (assq-ref (assq-ref a 'software) 'extra-packages) '())
+                           " ")))
+    (put win 11 2 "Passwords are stored as hashes and are not displayed.")
+    (put win 13 2 (tr wizard 'confirm))
+    (put win 14 2 "> ")
     (refresh win)
     (let ((answer (string-downcase (or (getnstr win 8) ""))))
       (if (member answer '("y" "yes"))
@@ -309,8 +388,12 @@ see why: hiding a disk they expect is worse than showing it with a warning."
 
 (define %pages
   `((language . ,page-language)
+    (locale . ,page-locale)
     (source . ,page-source)
     (storage . ,page-storage)
+    (boot . ,page-boot)
+    (software . ,page-software)
+    (network . ,page-network)
     (users . ,page-users)
     (review . ,page-review)
     (install . ,page-install)))

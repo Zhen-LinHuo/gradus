@@ -9,6 +9,7 @@
   #:use-module (gnu packages linux)
   #:use-module (gnu system)
   #:use-module (gnu system shadow)
+  #:use-module (gnu packages)
   #:use-module (gnu system file-systems)
   #:use-module (gnu system mapped-devices)
   #:use-module (gnu system uuid)
@@ -32,6 +33,11 @@
 
 (define %root-label "gradus-root")
 (define %esp-label "GRADUS-ESP")
+
+(define (answer-packages answers)
+  "Extra packages the operator asked for, as package records."
+  (map specification->package
+       (or (assq-ref (assq-ref answers 'software) 'extra-packages) '())))
 
 (define (boot-record boot disk)
   "Translate the boot section of an answer file into a
@@ -293,6 +299,8 @@ plain record: nothing is installed by this procedure."
       (timezone (or (assq-ref answers 'timezone) "UTC"))
       (locale (or (assq-ref answers 'locale) "en_US.utf8"))
       (kernel linux-libre)
+      (kernel-arguments (or (assq-ref boot 'extra-kernel-arguments) '()))
+      (packages (append (answer-packages answers) %base-packages))
       (bootloader (boot-record boot (assq-ref storage 'disk)))
       (mapped-devices (append (if (eq? mode 'lvm) (lvm-mapped-devices storage) '())
                               (render-assemble answers)))

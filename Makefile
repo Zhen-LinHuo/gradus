@@ -7,5 +7,6 @@ check:
 	$(GUILE) -L . tests/answers.scm
 	$(GUILE) -L . tests/storage.scm
 	$(GUILE) -L . tests/wizard.scm
+	$(GUILE) -L . tests/wizard-set.scm
 	$(GUILE) -L . tests/render.scm
 	$(GUILE) -L . tests/serialize.scm

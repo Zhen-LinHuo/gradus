@@ -24,7 +24,7 @@
 ;; The order a human meets the questions in.  `install' is not a question: it
 ;; is the gate the operator walks through when every page is answered.
 (define %wizard-steps
-  '(language source storage users review install))
+  '(language locale source storage boot software network users review install))
 
 ;; A wizard holds three things: the answers collected so far, the current step,
 ;; and the interface language.  The language is deliberately *not* an answer:
@@ -105,9 +105,13 @@ so that a front-end cannot get the shape wrong."
            (loop rest step)))
       (() wizard))))
 
+(define (alist-remove alist key)
+  "ALIST without KEY.  Pure: the wizard never mutates a value it was given."
+  (filter (lambda (pair) (not (eq? (car pair) key))) alist))
+
 (define (wizard-set wizard key value)
   "Record KEY as VALUE in the answers, replacing any earlier value."
-  (list (acons key value (assq-remove! (wizard-answers wizard) key))
+  (list (acons key value (alist-remove (wizard-answers wizard) key))
         (wizard-step wizard)
         (wizard-language wizard)))
 
