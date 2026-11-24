@@ -96,7 +96,12 @@
                        ;; A mount-point target only makes sense for EFI; a BIOS
                        ;; bootloader is installed on the storage disk.
                        (format #f "\"~a\""
-                               (if (string-prefix? "/dev/" target) target
+                               (if (or (string-prefix? "/dev/" target)
+                                       (eq? (assq-ref boot 'bootloader)
+                                            'grub-efi))
+                                   ;; EFI installs into the mounted ESP, so a
+                                   ;; mount point is the correct target there.
+                                   target
                                    (assq-ref (assq-ref answers 'storage)
                                              'disk))))
                      (bootloader-configuration-targets
