@@ -263,17 +263,17 @@ see why: hiding a disk they expect is worse than showing it with a warning."
                    (list (cons 'mode 'luks)
                          (cons 'name "cryptroot")
                          (cons 'passphrase first)))))
-           (swap-mib (or (string-＞number swap) 0))
-           (_ (when (and encryption (＞ swap-mib 0))
+           (swap-mib (or (string->number swap) 0))
+           (_ (when (and encryption (> swap-mib 0))
                 (error
                  "an encrypted install cannot use a separate swap partition (it would be plaintext); set the swap size to 0")))
            (_ (when (and encryption (eq? mode-sym 'lvm))
                 (error
                  "encryption is not implemented for LVM storage yet; choose simple storage or drop the encryption")))
            (storage (storage-answers mode-sym disk
-                                     #:esp-size (or (string-＞number esp) 1024)
+                                     #:esp-size (or (string->number esp) 1024)
                                      #:swap-size swap-mib
-                                     #:root-size (or (string-＞number root) 0)
+                                     #:root-size (or (string->number root) 0)
                                      #:encryption encryption)))
       (wizard-next (wizard-set wizard 'storage storage)))))
 
