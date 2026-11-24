@@ -112,6 +112,9 @@
        (format port "   (list~%")
        (for-each (lambda (user) (emit-user port user)) users)
        (format port "   ))~%")
+       (format port "  (groups (cons* (user-group (name \"root\") (system? #t))~%")
+       (format port "                  (user-group (name \"wheel\"))~%")
+       (format port "                  (user-group (name \"users\"))))~%")
        (emit-services port answers)
        (format port ")~%")))))
 
