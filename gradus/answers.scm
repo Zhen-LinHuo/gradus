@@ -4,6 +4,7 @@
 ;;; This file is part of Gradus.
 
 (define-module (gradus answers)
+  #:use-module (ice-9 exceptions)
   #:use-module (ice-9 format)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
@@ -23,7 +24,10 @@
   answers-error?)
 
 (define (answers-error message)
-  (raise (condition (&answers-error) (&message (message message)))))
+  ;; `raise' refuses a compound condition in Guile 3: it has to go through
+  ;; `raise-exception', or the caller only sees "wrong type" instead of the
+  ;; message we took care to write.
+  (raise-exception (condition (&answers-error) (&message (message message)))))
 
 (define (read-answers file)
   "Read FILE as a single S-expression and return it.  A missing file or a file
@@ -75,6 +79,59 @@ whose first form is not a pair is an answers error."
     (unless (and (pair? storage) (answer-ref storage 'disk))
       (answers-error "storage must name a disk"))))
 
+(define %terminals
+  '(console serial serial_0 serial_1 serial_2 serial_3
+    gfxterm vga_text mda_text morse spkmodem
+    at_keyboard usb_keyboard))
+
+(define (check-boot answers)
+  "Refuse terminal and serial settings GRUB could not honour.  A typo here
+would leave a headless machine with no console at boot, which is not something
+the operator can repair without physical access."
+  (let ((boot (answer-ref answers 'boot)))
+    (when boot
+      (for-each
+       (lambda (key)
+         (let ((terminals (answer-ref boot key)))
+           (when terminals
+             (unless (list? terminals)
+               (answers-error (format #f "~a must be a list" key)))
+             (for-each (lambda (terminal)
+                         (unless (memq terminal %terminals)
+                           (answers-error
+                            (format #f "unknown terminal in ~a: ~a" key terminal))))
+                       terminals))))
+       '(terminal-outputs terminal-inputs))
+      (for-each
+       (lambda (key)
+         (let ((value (answer-ref boot key)))
+           (when value
+             (unless (and (integer? value) (>= value 0))
+               (answers-error (format #f "~a must be a non-negative integer" key))))))
+       '(serial-unit serial-speed timeout)))))
+
+(define (check-storage answers)
+  "Refuse storage combinations the installer cannot honour.  The check runs
+before anything is written to a disk: finding out after partitioning that the
+result would be a plaintext disk or an unbootable declaration is too late."
+  (let* ((storage (answer-ref answers 'storage))
+         (mode (answer-ref storage 'mode))
+         (encryption (answer-ref storage 'encryption))
+         (swap (or (answer-ref storage 'swap-size) 0)))
+    (unless (memq mode '(simple lvm))
+      (answers-error
+       (format #f "storage mode ~a is not implemented; use `simple' or `lvm'"
+               mode)))
+    (when (and encryption (eq? mode 'lvm))
+      (answers-error
+       "encryption is not implemented for LVM storage yet; choose `simple' storage or drop the encryption section"))
+    (when (and encryption (> swap 0))
+      (answers-error
+       "an encrypted install cannot use a separate swap partition yet (swap would be plaintext); set swap-size to 0"))
+    (when encryption
+      (unless (non-empty-string? (answer-ref encryption 'passphrase))
+        (answers-error "encrypted storage needs a non-empty passphrase")))))
+
 (define (check-duplicates answers)
   "A repeated top-level key makes the file ambiguous; reject it."
   (let loop ((seen '()) (entries answers))
@@ -93,4 +150,6 @@ answers error listing the first problem found."
   (check-known-keys answers)
   (check-required-keys answers)
   (check-values answers)
+  (check-storage answers)
+  (check-boot answers)
   answers)

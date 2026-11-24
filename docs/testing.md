@@ -182,6 +182,42 @@ Every release candidate is installed at least once per row.
 Firmware and storage are the axes that break installers; they are never skipped
 for a release, even a documentation-only one.
 
+## T9 — Encrypted root boots
+
+**Question:** after an encrypted install, does the machine actually come up?
+
+An encrypted root has two failure modes that no unit test can see: GRUB only
+learns the passphrase when the mapped device's source is a LUKS **UUID** (a
+device path is dropped with a warning), and the bootloader only speaks on the
+serial line when the terminals are configured. Either mistake produces a
+machine that installs perfectly and then does not start.
+
+Procedure: install unattended with `(encryption (mode . luks))` and
+`swap-size 0` (a separate swap partition would sit in plaintext outside the
+container), then boot the disk with no installation medium attached.
+
+Pass criteria:
+
+- GRUB asks for the passphrase on the configured console;
+- the kernel starts and the root is mounted from `/dev/mapper/<name>`;
+- the account created in the answers can log in;
+- `/etc/gradus/provenance.scm` names `mode answers` and the Guix that built it.
+
+Last run (BIOS, LUKS1, serial console):
+
+```
+Enter passphrase for hd0,gpt2 (a0a35a9e-…):
+NAME          FSTYPE      LABEL TYPE
+└─vda2        crypto_LUKS       part
+  └─cryptroot                   crypt
+findmnt -no SOURCE /   →  /dev/mapper/cryptroot
+```
+
+Two rig notes, learned the hard way: a passphrase written to the console in one
+go is swallowed (type it a character at a time), and `cryptsetup
+open --test-passphrase` against the disk is the quickest way to separate "wrong
+passphrase" from "input not reaching GRUB".
+
 ## Evidence
 
 An installation counts as tested only when all of the following are attached to

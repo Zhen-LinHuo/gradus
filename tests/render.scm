@@ -118,6 +118,50 @@
       (and (= 1 (length volumes))
            (uuid? (file-system-device (car volumes))))))
 
+  (test-assert "an encrypted root is declared by its LUKS UUID"
+    (let* ((answers (with-key 'storage
+                              '((mode . simple) (disk . "/dev/vda")
+                                (encryption (mode . luks) (name . "cryptroot")))))
+           (device-map '(("GRADUS-ESP" (device . "/dev/vda1") (type . "vfat")
+                          (uuid . "34CB-A679"))
+                         ("gradus-root" (device . "/dev/mapper/cryptroot")
+                          (type . "ext4")
+                          (uuid . "1454237d-7923-4816-827a-3064eba2b19d"))
+                         ("gradus-crypt" (device . "/dev/vda2")
+                          (type . "crypto_LUKS")
+                          (uuid . "0b5d5f7a-9d5e-4b7a-9a58-4f0c1c6b0d11"))))
+           (mapped (operating-system-mapped-devices
+                    (render-answers/devices answers device-map)))
+           (root (find (lambda (md) (eq? luks-device-mapping
+                                         (mapped-device-type md)))
+                       mapped)))
+      (and root
+           (uuid? (mapped-device-source root))
+           (eq? 'luks (uuid-type (mapped-device-source root)))
+           (equal? '("cryptroot") (mapped-device-targets root))
+           (equal? "/dev/vda2"
+                   (assq-ref (assoc-ref device-map "gradus-crypt") 'device)))))
+
+  (test-assert "no mapped device is declared when the LUKS UUID is unknown"
+    (let* ((answers (with-key 'storage
+                              '((mode . simple) (disk . "/dev/vda")
+                                (encryption (mode . luks)))))
+           (device-map '(("gradus-crypt" (device . "/dev/vda2")
+                          (type . "crypto_LUKS"))))
+           (mapped (operating-system-mapped-devices
+                    (render-answers/devices answers device-map))))
+      ;; A path-sourced LUKS device would produce a declaration GRUB cannot
+      ;; unlock, so nothing is declared and the serializer refuses to write it.
+      (null? mapped)))
+
+  (test-assert "swap is declared without extra dependencies"
+    (let* ((answers (with-key 'storage
+                              '((mode . simple) (disk . "/dev/vda")
+                                (swap-size . 1024))))
+           (swap (car (operating-system-swap-devices
+                       (render-answers/devices answers '())))))
+      (null? (swap-space-dependencies swap))))
+
   (test-end "assembled storage")
 
   (test-begin "sources and proxy")
@@ -183,5 +227,19 @@
         #f)
       (lambda args #t)))
 
+
+
+  (test-equal "a serial console survives into the bootloader record"
+    '((console serial) (serial) 0 115200)
+    (let ((config (operating-system-bootloader
+                   (render-answers
+                    (with-key 'boot
+                              '((bootloader . grub-efi) (timeout . 5)
+                                (terminal-outputs console serial)
+                                (terminal-inputs serial)))))))
+      (list (bootloader-configuration-terminal-outputs config)
+            (bootloader-configuration-terminal-inputs config)
+            (bootloader-configuration-serial-unit config)
+            (bootloader-configuration-serial-speed config))))
 
 (exit (if (zero? (test-runner-fail-count runner)) 0 1))
