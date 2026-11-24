@@ -19,7 +19,8 @@
       (locale . "en_US.utf8")
       (storage (mode . simple) (disk . "/dev/vda"))
       (boot (bootloader . grub-efi) (timeout . 5))
-      (users ((name . "tester") (group . "users")))))
+      (users ((name . "tester") (group . "users")
+              (password . "$6$abcdefgh$3rj1vTLX64btReFsM4MQ22otcD40l7vbtw7qCyr0dxc4kxNmgx53xVM8gWiLYbCqTHTbXFaVFU7ZT28pnvdyu0")))))
 
   (define device-map
     '(("gradus-root" (device . "/dev/vda2") (type . "ext4")
