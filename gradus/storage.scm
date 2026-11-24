@@ -11,7 +11,9 @@
   #:use-module (srfi srfi-13)
   #:use-module (ice-9 rdelim)
   #:use-module (srfi srfi-11)
-  #:export (disk-busy?
+  #:export (simple-layout
+            parted-arguments
+            disk-busy?
             parse-blkid
             read-device-map
             partition-name
@@ -89,47 +91,117 @@ and is always a mistake, so this is checked before anything is written."
                         (call-with-input-file removable read-line))
                        "1"))))))
 
+(define (storage-option answers key default)
+  "An option from the storage section of ANSWERS, or DEFAULT."
+  (or (assq-ref (assq-ref answers 'storage) key) default))
+
+(define (parted-size n)
+  "A size for parted, in MiB."
+  (format #f "~aMiB" n))
+
+(define (simple-layout answers)
+  "The partitions to create, as (name type start end).  The layout follows the
+bootloader and the sizes the operator chose; END is `100%' for a root that
+takes the rest of the disk."
+  (let* ((efi? (eq? (assq-ref (assq-ref answers 'boot) 'bootloader) 'grub-efi))
+         (esp (if efi? (storage-option answers 'esp-size 1024) 0))
+         (swap (storage-option answers 'swap-size 0))
+         (root (storage-option answers 'root-size 0))
+         (after-first (if efi? (+ 1 esp) 2)))
+    (append
+     (if efi?
+         (list (list "ESP" "fat32" 1 (+ 1 esp)))
+         (list (list "biosboot" #f 1 2)))
+     (if (> swap 0)
+         (list (list "swap" "linux-swap" after-first (+ after-first swap)))
+         '())
+     (let ((root-start (+ after-first (if (> swap 0) swap 0))))
+       (list (list "root" "ext4" root-start
+                   (if (> root 0) (+ root-start root) "100%")))))))
+
+(define (parted-arguments disk layout)
+  "The parted invocation that creates LAYOUT on DISK."
+  (append
+   (list "-s" disk "mklabel" "gpt")
+   (append-map
+    (lambda (partition)
+      (let ((name (first partition))
+            (type (second partition))
+            (start (third partition))
+            (end (fourth partition)))
+        (append
+         (if type
+             (list "mkpart" name type (parted-size start)
+                   (if (equal? end "100%") "100%" (parted-size end)))
+             (list "mkpart" name (parted-size start) (parted-size end)))
+         (cond ((string=? name "ESP") (list "set" "1" "esp" "on"))
+               ((string=? name "biosboot") (list "set" "1" "bios_grub" "on"))
+               (else '())))))
+    layout)))
+
 (define (prepare-simple answers)
   "Partition and format the target described by a `simple' storage answer,
 then return the label-keyed device map of what was created.  The layout
-follows the bootloader: an EFI machine gets an ESP, a BIOS machine gets a BIOS
-Boot partition, because GRUB on GPT has nowhere to embed its core image
-otherwise.  Data volumes are never touched."
+follows the bootloader; the sizes follow the answers; encryption, when asked
+for, is LUKS1 because GRUB has to read the root file system at boot."
   (let* ((storage (assq-ref answers 'storage))
          (disk (assq-ref storage 'disk))
-         (efi? (eq? (assq-ref (assq-ref answers 'boot) 'bootloader)
-                    'grub-efi))
-         (first (partition-name disk 1))
-         (root (partition-name disk 2)))
+         (efi? (eq? (assq-ref (assq-ref answers 'boot) 'bootloader) 'grub-efi))
+         (swap (storage-option answers 'swap-size 0))
+         (encryption (assq-ref storage 'encryption))
+         (layout (simple-layout answers))
+         (partitions (map (lambda (p) (first p)) layout))
+         (index-of (lambda (name)
+                     (+ 1 (list-index (lambda (p) (string=? p name)) partitions))))
+         (root-part (partition-name disk (index-of "root")))
+         (swap-part (and (> swap 0)
+                         (partition-name disk (index-of "swap"))))
+         (first-part (partition-name disk 1)))
     (when (disk-busy? disk)
       (error "the target disk is in use and will not be written to" disk))
-    (if efi?
-        (begin
-          (unless (zero? (run-command/stream
-                          "parted" "-s" disk "mklabel" "gpt"
-                          "mkpart" "ESP" "fat32" "1MiB" "1025MiB"
-                          "set" "1" "esp" "on"
-                          "mkpart" "root" "ext4" "1025MiB" "100%"))
-            (error "partitioning failed" disk))
-          (run-command/stream "partprobe" disk)
-          (run-command/stream "udevadm" "settle")
-          (unless (zero? (run-command/stream "mkfs.vfat" "-n" "GRADUS-ESP" first))
-            (error "mkfs.vfat failed" first)))
-        (begin
-          ;; BIOS: a 1 MiB BIOS Boot partition, no file system on it, and GRUB
-          ;; embeds its core image there.
-          (unless (zero? (run-command/stream
-                          "parted" "-s" disk "mklabel" "gpt"
-                          "mkpart" "biosboot" "1MiB" "2MiB"
-                          "set" "1" "bios_grub" "on"
-                          "mkpart" "root" "ext4" "2MiB" "100%"))
-            (error "partitioning failed" disk))
-          (run-command/stream "partprobe" disk)
-          (run-command/stream "udevadm" "settle")))
-    (unless (zero? (run-command/stream "mkfs.ext4" "-q" "-F"
-                                       "-L" "gradus-root" root))
-      (error "mkfs.ext4 failed" root))
-    (read-device-map (if efi? (list first root) (list root)))))
+    (unless (zero? (apply run-command/stream "parted"
+                          (parted-arguments disk layout)))
+      (error "partitioning failed" disk))
+    (run-command/stream "partprobe" disk)
+    (run-command/stream "udevadm" "settle")
+    (when efi?
+      (unless (zero? (run-command/stream "mkfs.vfat" "-n" "GRADUS-ESP" first-part))
+        (error "mkfs.vfat failed" first-part)))
+    (when swap-part
+      (unless (zero? (run-command/stream "mkswap" "-L" "gradus-swap" swap-part))
+        (error "mkswap failed" swap-part)))
+    (let ((root-device
+           (if encryption
+               (let* ((name (or (assq-ref encryption 'name) "cryptroot"))
+                      (mapper (string-append "/dev/mapper/" name))
+                      (passphrase (or (assq-ref encryption 'passphrase) "")))
+                 (with-secret-file
+                  passphrase
+                  (lambda (key-file)
+                    (unless (zero? (run-command/stream
+                                    "cryptsetup" "luksFormat" "--type" "luks1"
+                                    "--batch-mode" "--key-file" key-file
+                                    root-part))
+                      (error "cryptsetup luksFormat failed" root-part))
+                    (unless (zero? (run-command/stream
+                                    "cryptsetup" "open" "--key-file" key-file
+                                    root-part name))
+                      (error "cryptsetup open failed" root-part))))
+                 mapper)
+               root-part)))
+      (unless (zero? (run-command/stream "mkfs.ext4" "-q" "-F"
+                                         "-L" "gradus-root" root-device))
+        (error "mkfs.ext4 failed" root-device))
+      (append
+       (read-device-map (append (if efi? (list first-part) '())
+                                (if swap-part (list swap-part) '())
+                                (list root-device)))
+       ;; render needs the underlying partition for mapped-device, which blkid
+       ;; cannot tell from the mapper's own label.
+       (if encryption
+           (list (cons "gradus-crypt"
+                       (list (cons 'device root-part) (cons 'type "luks"))))
+           '())))))
 
 (define (volume-group storage)
   "Return the volume group named by STORAGE, defaulting to \"vg0\"."

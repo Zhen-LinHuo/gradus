@@ -6,11 +6,13 @@
 
 (define-module (gradus wizard)
   #:use-module (ice-9 match)
+  #:use-module (ice-9 optargs)
   #:use-module (srfi srfi-1)
   #:export (%wizard-steps
             firmware-bootloader
             with-defaults
             storage-answers
+            default-swap-size
             make-wizard
             wizard-answers
             wizard-step
@@ -59,10 +61,21 @@ the operator chose."
           (filter (lambda (pair) (not (assq (car pair) answers)))
                   (%answer-defaults))))
 
-(define (storage-answers mode disk)
+(define (default-swap-size ram-mib)
+  "The swap size to propose for a machine with RAM-MIB of memory: as much as
+the memory itself, never below 1 GiB, never above 8 GiB.  The operator can
+always type another number, including 0."
+  (min 8192 (max 1024 ram-mib)))
+
+(define* (storage-answers mode disk #:key (esp-size 1024) (swap-size 0)
+                          (root-size 0) encryption)
   "The storage answer for MODE and DISK.  It is an alist, and it is built here
 so that a front-end cannot get the shape wrong."
-  (append (list (cons 'mode mode) (cons 'disk disk))
+  (append (list (cons 'mode mode) (cons 'disk disk)
+                (cons 'esp-size esp-size)
+                (cons 'swap-size swap-size)
+                (cons 'root-size root-size))
+          (if encryption (list (cons 'encryption encryption)) '())
           (if (eq? mode 'lvm)
               '((volume-group . "vg0")
                 (volumes ((name . "root") (size . "100%FREE"))))
