@@ -61,6 +61,10 @@ larger change than this slice."
           (else
            (answers-error (format #f "unsupported bootloader: ~a" kind))))))
 
+(define (answer-groups answers)
+  "User groups declared in the answers beyond the two every install has."
+  (or (assq-ref answers 'groups) '()))
+
 (define (answer-users users)
   "Map the answer users onto user-account records.  Every user gets the
 `users' group and a home directory; the administrative group is added by the
@@ -308,7 +312,13 @@ plain record: nothing is installed by this procedure."
               (modify-services %base-services
                 (guix-service-type config =>
                                    ((guix-service-for answers) config)))))
-      (users (cons (root-account answers) (answer-users users))))))
+      (users (cons (root-account answers) (answer-users users)))
+      ;; The accounts' supplementary groups must be declared; the two every
+      ;; installation needs are wheel (administration) and users.
+      (groups (cons* (user-group (name "root") (system? #t))
+                     (user-group (name "wheel"))
+                     (user-group (name "users"))
+                     (answer-groups answers))))))
 
 (define (render-answers answers)
   "Render ANSWERS without a device map: file systems fall back to labels."
