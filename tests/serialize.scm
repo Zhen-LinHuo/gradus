@@ -54,8 +54,11 @@
     "$6$abcdefgh$3rj1vTLX64btReFsM4MQ22otcD40l7vbtw7qCyr0dxc4kxNmgx53xVM8gWiLYbCqTHTbXFaVFU7ZT28pnvdyu0"
     (user-account-password (car (operating-system-users os))))
 
-  (test-equal "the groups the accounts refer to are declared"
-    (list "root" "wheel" "users")
-    (map user-group-name (operating-system-groups os))))
+  (test-assert "the groups the accounts refer to are declared"
+    (let ((names (map user-group-name (operating-system-groups os))))
+      (and (member "root" names) (member "wheel" names)
+           (member "users" names)
+           ;; %base-groups must survive, or system accounts lose theirs.
+           (member "kvm" names)))))
 
 (exit (if (zero? (test-runner-fail-count runner)) 0 1))
