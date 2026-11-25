@@ -190,6 +190,12 @@ for, is LUKS1 because GRUB has to read the root file system at boot."
                  mapper)
                root-part)))
       (let* ((fs (or (assq-ref storage 'filesystem) "ext4"))
+             (_ (unless (zero? (status:exit-val
+                                (system* "sh" "-c"
+                                         (format #f "command -v mkfs.~a" fs))))
+                  (error (format #f
+                                 "mkfs.~a is not installed on this system; choose another filesystem or add its package to the image"
+                                 fs))))
              (command (cond ((string=? fs "xfs")
                              (list "mkfs.xfs" "-f" "-L" "gradus-root" root-device))
                             ((string=? fs "btrfs")
