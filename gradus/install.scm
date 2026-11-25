@@ -54,6 +54,19 @@ success; raise on the first failure."
                                      "--dry-run" "--no-grafts" config-file))
     (exit +exit-validation+))
   (let ((os (load-configuration config-file)))
+    ;; A previous attempt may have left the target mounted, or files behind in
+    ;; it; guix's mount refuses a non-empty directory, and an installer must be
+    ;; safe to run twice.
+    (log-line "==> [2/4] clearing ~a" root)
+    (system* "sh" "-c" (string-append "umount -R " root " 2>/dev/null || true"))
+    (when (zero? (status:exit-val (system* "mountpoint" "-q" root)))
+      (error "the target is still mounted; unmount it first" root))
+    (when (file-exists? root)
+      (unless (zero? (status:exit-val
+                      (system* "sh" "-c"
+                               (string-append "find " root
+                                              " -mindepth 1 -maxdepth 1 -exec rm -rf {} +"))))
+        (error "cannot empty the target directory" root)))
     (log-line "==> [2/4] mounting the target beneath ~a" root)
     (catch #t
       (lambda () (mount-plan (configuration-plan os) root))
