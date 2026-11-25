@@ -218,6 +218,35 @@ go is swallowed (type it a character at a time), and `cryptsetup
 open --test-passphrase` against the disk is the quickest way to separate "wrong
 passphrase" from "input not reaching GRUB".
 
+## T10 — The console front-end installs, end to end
+
+**Claim:** an operator who never opens a shell can install the system from the
+console front-end, and the installed system boots and accepts its login.
+
+**Procedure.** The live medium is booted in a VM with the wizard on the virtual
+console; the walkthrough below was driven with `virsh send-key` (one keycode per
+call -- consecutive identical keys in a single call are coalesced by the guest,
+which silently corrupted names). Defaults were accepted everywhere except the
+account.
+
+1. Language page: Enter.
+2. Localisation, storage, software, boot, network: `c` accepts each form.
+3. Storage: the plan screen is accepted; the filesystem was ext4 (btrfs was
+   verified separately, T9's medium had btrfs-progs).
+4. Users: name and passwords typed on the forms.
+5. Review: Enter on install; the log shows the four stages and ends with
+   `[4/4] installed; declaration kept at /mnt/target/etc/config.scm`.
+
+**Evidence.** After ejecting the medium the VM boots from disk to
+`gradus login:` (the host name comes from the answers), and `root` with the
+password entered in step 4 reaches `root@gradus ~#`.
+
+**Bugs this run caught** (all fixed before it passed): a stray `reviewed` key
+rejected by the answer schema; a missing mkfs tool failing after partitioning;
+`mount LABEL=` racing udev; a duplicate getty fighting over ttyS0; the daemon
+ignoring the declared substitute URLs; and a comment swallowing a parenthesis
+that only the real front-end could reach.
+
 ## Evidence
 
 An installation counts as tested only when all of the following are attached to
