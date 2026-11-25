@@ -285,6 +285,9 @@ see why: hiding a disk they expect is worse than showing it with a warning."
                          (iota 8)))
                    "$")))
 
+(define (replace-at lst i value)
+  (append (take lst i) (list value) (drop lst (+ i 1))))
+
 (define (make-field label kind value options)
   (vector label kind value options))
 (define (field-label f) (vector-ref f 0))
@@ -351,8 +354,8 @@ fields once an `action' row is activated."
              (let ((f (list-ref fields selected)))
                (if (eq? (field-kind f) 'action)
                    fields
-                   (loop (list-set fields selected
-                                   (field-with-value f (edit-field win f)))
+                   (loop (replace-at fields selected
+                                    (field-with-value f (edit-field win f)))
                          selected))))
             (else (loop fields selected))))))
 
@@ -576,15 +579,46 @@ fields once an `action' row is activated."
                         (cons 'terminal-inputs '(serial)))
                   '()))))))
 
+(define %extra-packages
+  '("htop" "vim" "git" "tmux" "curl" "rsync" "btrfs-progs" "xfsprogs"))
+
 (define (page-software win wizard)
-  (let ((names (ask wizard win 3 (tr wizard 'packages) "")))
-    (if (back? names)
-        (wizard-back wizard)
-        (wizard-next
-         (wizard-set wizard 'software
-                     (list (cons 'extra-packages
-                                 (if (string-null? names) '()
-                                     (string-split names #\space)))))))))
+  (let loop ((selected (or (assq-ref (assq-ref (wizard-answers wizard) 'software)
+                                      'extra-packages)
+                           '()))
+             (cursor 0))
+    (clear win)
+    (box win (acs-vline) (acs-hline))
+    (put win 0 2 " Extra software ")
+    (put win 2 2 "Space or Enter marks a package; Continue accepts.")
+    (let draw ((items %extra-packages) (row 4) (i 0))
+      (unless (null? items)
+        (put win row 2 (format #f "~a [~a] ~a"
+                               (if (= i cursor) ">" " ")
+                               (if (member (car items) selected) "x" " ")
+                               (car items)))
+        (draw (cdr items) (+ row 1) (+ i 1))))
+    (put win (+ 4 (length %extra-packages)) 2
+         (format #f "~a Continue"
+                 (if (= cursor (length %extra-packages)) ">" " ")))
+    (refresh win)
+    (let ((k (key-code (getch win))))
+      (cond ((= k KEY_UP) (loop selected (max 0 (- cursor 1))))
+            ((= k KEY_DOWN)
+             (loop selected (min (length %extra-packages) (+ cursor 1))))
+            ((= k 27) (throw 'gradus-back #t))
+            ((= k 3) (quit!))
+            ((or (= k 10) (= k 13) (= k 32))
+             (if (= cursor (length %extra-packages))
+                 (wizard-next
+                  (wizard-set wizard 'software
+                              (list (cons 'extra-packages selected))))
+                 (let ((package (list-ref %extra-packages cursor)))
+                   (loop (if (member package selected)
+                             (delete package selected)
+                             (cons package selected))
+                         cursor))))
+            (else (loop selected cursor))))))
 
 (define (page-network win wizard)
   (let* ((fields (list (make-field "Host name" 'text "gradus" '())
@@ -612,47 +646,68 @@ fields once an `action' row is activated."
                                     (cons 'password (crypt password s)))))))
     (wizard-next (wizard-set w 'root-password (crypt root s)))))
 
+(define (wizard-goto wizard step)
+  "Jump to STEP, keeping the answers collected so far."
+  (list (car wizard) step (caddr wizard)))
+
 (define (page-review win wizard)
-  ;; A summary a human can check, not a dump of the answer form: passwords are
-  ;; hashes at this point and must not be shown at all.
+  ;; A summary a human can check, with a way back into each page that feeds it.
   (let* ((a (wizard-answers wizard))
          (storage (assq-ref a 'storage))
          (source (assq-ref a 'source))
          (services (assq-ref source 'substitute-services))
          (boot (assq-ref a 'boot))
-         (users (assq-ref a 'users)))
-    (put win 2 2 (format #f "host name   : ~a" (or (assq-ref a 'host-name) "gradus")))
-    (put win 3 2 (format #f "disk        : ~a" (assq-ref storage 'disk)))
-    (put win 4 2 (format #f "layout      : ~a" (assq-ref storage 'mode)))
-    (put win 5 2 (format #f "bootloader  : ~a" (assq-ref boot 'bootloader)))
-    (put win 6 2 (format #f "substitutes : ~a"
-                         (if (pair? services)
-                             (assq-ref (car services) 'url)
-                             "official (default)")))
-    (put win 7 2 (format #f "accounts    : root, ~a"
-                         (string-join (map (lambda (u) (assq-ref u 'name)) users)
-                                      ", ")))
-    (put win 8 2 (format #f "system      : ~a, ~a, keyboard ~a, NTP ~a"
-                         (or (assq-ref a 'timezone) "UTC")
-                         (or (assq-ref a 'locale) "en_US.utf8")
-                         (or (assq-ref a 'keyboard) "us")
-                         (if (assq-ref a 'ntp) "on" "off")))
-    (put win 9 2 (format #f "kernel args : ~a"
-                         (string-join (or (assq-ref boot 'extra-kernel-arguments)
-                                          '())
-                                      " ")))
-    (put win 10 2 (format #f "packages    : ~a"
-                          (string-join
-                           (or (assq-ref (assq-ref a 'software) 'extra-packages) '())
-                           " ")))
-    (put win 11 2 "Passwords are stored as hashes and are not displayed.")
-    (put win 13 2 (tr wizard 'confirm))
-    (put win 14 2 "> ")
-    (refresh win)
-    (let ((answer (string-downcase (or (getnstr win 8) ""))))
-      (if (member answer '("y" "yes"))
-          (wizard-next wizard)
-          (wizard-back wizard)))))
+         (users (assq-ref a 'users))
+         (software (assq-ref (assq-ref a 'software) 'extra-packages))
+         (rows (list (cons "host name  " (or (assq-ref a 'host-name) "gradus"))
+                     (cons "disk       " (format #f "~a (~a)"
+                                                 (assq-ref storage 'disk)
+                                                 (or (assq-ref storage 'filesystem) "ext4")))
+                     (cons "layout     " (format #f "~a, swap ~a MiB"
+                                                 (assq-ref storage 'mode)
+                                                 (or (assq-ref storage 'swap-size) 0)))
+                     (cons "bootloader " (format #f "~a~a"
+                                                 (assq-ref boot 'bootloader)
+                                                 (if (assq-ref boot 'terminal-outputs)
+                                                     " (serial)" "")))
+                     (cons "substitutes" (if (pair? services)
+                                             (assq-ref (car services) 'url)
+                                             "official"))
+                     (cons "packages   " (if (pair? software)
+                                             (string-join software " ")
+                                             "(none)"))
+                     (cons "accounts   " (string-join
+                                          (map (lambda (u) (assq-ref u 'name)) users)
+                                          ", "))
+                     (cons "system     " (format #f "~a, ~a, keyboard ~a, NTP ~a"
+                                                 (or (assq-ref a 'timezone) "UTC")
+                                                 (or (assq-ref a 'locale) "en_US.utf8")
+                                                 (or (assq-ref a 'keyboard) "us")
+                                                 (if (assq-ref a 'ntp) "on" "off"))))))
+    (clear win)
+    (box win (acs-vline) (acs-hline))
+    (put win 0 2 " Review ")
+    (let loop ((items rows) (row 3))
+      (unless (null? items)
+        (put win row 2 (format #f "~a: ~a" (car (car items)) (cdr (car items))))
+        (loop (cdr items) (+ row 1))))
+    (let ((choice (choose win (+ 5 (length rows)) "What next?"
+                          (list "install"
+                                "change localisation"
+                                "change storage"
+                                "change boot loader"
+                                "change software"
+                                "change network"
+                                "change users")
+                          0)))
+      (case choice
+        ((0) (wizard-next (wizard-set wizard 'reviewed #t)))
+        ((1) (wizard-goto wizard 'locale))
+        ((2) (wizard-goto wizard 'storage))
+        ((3) (wizard-goto wizard 'boot))
+        ((4) (wizard-goto wizard 'software))
+        ((5) (wizard-goto wizard 'network))
+        (else (wizard-goto wizard 'users))))))
 
 (define (page-install win wizard)
   (put win 3 2 (tr wizard 'installing))
