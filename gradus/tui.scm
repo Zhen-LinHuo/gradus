@@ -285,6 +285,77 @@ see why: hiding a disk they expect is worse than showing it with a warning."
                          (iota 8)))
                    "$")))
 
+(define (make-field label kind value options)
+  (vector label kind value options))
+(define (field-label f) (vector-ref f 0))
+(define (field-kind f) (vector-ref f 1))
+(define (field-value f) (vector-ref f 2))
+(define (field-options f) (vector-ref f 3))
+(define (field-with-value f v) (make-field (field-label f) (field-kind f) v (field-options f)))
+
+(define (show-value v)
+  (cond ((string? v) v) ((symbol? v) (symbol->string v))
+        ((eq? v #t) "yes") ((eq? v #f) "no") (else (format #f "~a" v))))
+
+(define (draw-form win title fields selected)
+  (clear win)
+  (box win (acs-vline) (acs-hline))
+  (put win 0 2 (format #f " ~a " title))
+  (let loop ((fs fields) (row 4) (i 0))
+    (unless (null? fs)
+      (let* ((f (car fs))
+             (mark (if (= i selected) ">" " "))
+             (val (if (eq? (field-kind f) 'action)
+                      ""
+                      (format #f ": ~a" (show-value (field-value f))))))
+        (put win row 2 (format #f "~a ~a~a" mark (field-label f) val)))
+      (loop (cdr fs) (+ row 1) (+ i 1))))
+  (put win (+ 4 (length fields) 2) 2 "Up/Down move   Enter choose   Esc back   Ctrl-C quit")
+  (refresh win))
+
+(define (edit-field win field)
+  "Edit one field.  Menus are the default; text is the exception."
+  (let ((kind (field-kind field)))
+    (cond
+     ((eq? kind 'menu)
+      (clear win)
+      (box win (acs-vline) (acs-hline))
+      (put win 0 2 (format #f " ~a " (field-label field)))
+      (let* ((options (map show-value (field-options field)))
+             (current (let loop ((o options) (i 0))
+                        (cond ((null? o) 0)
+                              ((equal? (car o) (show-value (field-value field))) i)
+                              (else (loop (cdr o) (+ i 1)))))))
+        (list-ref (field-options field)
+                  (choose win 3 (field-label field) options current))))
+     ((eq? kind 'text)
+      (clear win)
+      (box win (acs-vline) (acs-hline))
+      (put win 0 2 (format #f " ~a " (field-label field)))
+      (put win 3 2 "Type a value; Enter accepts.")
+      (read-line* win 5 2 "> " (show-value (field-value field)) #t))
+     (else (field-value field)))))
+
+(define (form win title fields)
+  "A page made of rows: move with the arrows, Enter picks a value.  Returns the
+fields once an `action' row is activated."
+  (let loop ((fields fields) (selected 0))
+    (draw-form win title fields selected)
+    (let ((k (key-code (getch win))))
+      (cond ((= k KEY_UP) (loop fields (max 0 (- selected 1))))
+            ((= k KEY_DOWN)
+             (loop fields (min (- (length fields) 1) (+ selected 1))))
+            ((= k 27) (throw 'gradus-back #t))
+            ((= k 3) (quit!))
+            ((or (= k 10) (= k 13))
+             (let ((f (list-ref fields selected)))
+               (if (eq? (field-kind f) 'action)
+                   fields
+                   (loop (list-set fields selected
+                                   (field-with-value f (edit-field win f)))
+                         selected))))
+            (else (loop fields selected))))))
+
 (define (%disk-mib entry)
   "Size of ENTRY in MiB."
   (let ((path (format #f "/sys/block/~a/size" entry)))
@@ -347,75 +418,75 @@ see why: hiding a disk they expect is worse than showing it with a warning."
       free)))
 
 (define (page-storage win wizard)
-  (frame win wizard)
   (let* ((disks (%disks))
          (labels (map (lambda (d)
                         (format #f "~a  (~a MiB)~a"
                                 (%disk-name d) (%disk-mib d) (%disk-note d)))
-                      disks)))
-    (if (null? disks)
-        (begin (put win 3 2 "No installable disks were found.")
-               (put win 5 2 "Attach a disk and press any key to rescan.")
-               (getch win)
-               (page-storage win wizard))
-        (let* ((index (choose win 3 (tr wizard 'disks) labels 0))
-               (entry (list-ref disks index))
-               (disk (%disk-name entry))
-               (total (%disk-mib entry))
-               (efi? (eq? (firmware-bootloader) 'grub-efi)))
-          (frame win wizard)
-          (put win 2 2 (format #f "~a: ~a MiB" disk total))
-          (let* ((mode (choose win 4 (tr wizard 'mode)
-                               (list (tr wizard 'simple) (tr wizard 'lvm)) 0))
-                 (mode-sym (if (zero? mode) 'simple 'lvm)))
-            (frame win wizard)
-            (put win 2 2 (format #f "~a: ~a MiB   (~a free before partitioning)"
-                                 disk total total))
-            (let* ((esp (ask wizard win 4 (tr wizard 'esp-size) "1024"))
-                   (default-swap (number->string (default-swap-size (ram-mib))))
-                   (swap (ask wizard win 7 (tr wizard 'swap-size) default-swap))
-                   (root (ask wizard win 10 (tr wizard 'root-size) "0")))
-              (frame win wizard)
-              (put win 2 2 (format #f "~a: ~a MiB" disk total))
-              (let* ((esp-mib (or (string->number esp) 1024))
-                     (swap-mib (or (string->number swap) 0))
-                     (root-mib (or (string->number root) 0))
-                     (free (show-plan win total efi? esp-mib swap-mib root-mib))
-                     (choice (choose win (+ 7 (if efi? 3 3)) "Use this layout?"
-                                     (list "yes" "change the sizes") 0)))
-                (if (= choice 1)
-                    (page-storage win wizard)
-                    (begin
-                      (frame win wizard)
-                      (put win 2 2 (format #f "~a: ~a MiB" disk total))
-                      (let* ((encrypt (choose win 4 (tr wizard 'encrypt)
-                                              (list "no" "yes (LUKS1)") 0)))
-                        (if (zero? encrypt)
-                            (wizard-next
-                             (wizard-set wizard 'storage
-                                         (storage-answers mode-sym disk
-                                                          #:esp-size esp-mib
-                                                          #:swap-size swap-mib
-                                                          #:root-size root-mib)))
-                            (begin
-                              (when (> swap-mib 0)
-                                (error "an encrypted install cannot keep a separate swap partition; set the swap size to 0"))
-                              (when (eq? mode-sym 'lvm)
-                                (error "encryption is not implemented for LVM storage yet"))
-                              (let ((first (ask-password wizard win 4 (tr wizard 'passphrase)))
-                                    (again (ask-password wizard win 6 (tr wizard 'passphrase-again))))
-                                (unless (equal? first again)
-                                  (error "the two passphrases do not match"))
-                                (wizard-next
-                                 (wizard-set wizard 'storage
-                                             (storage-answers mode-sym disk
-                                                              #:esp-size esp-mib
-                                                              #:swap-size swap-mib
-                                                              #:root-size root-mib
-                                                              #:encryption
-                                                              (list (cons 'mode 'luks)
-                                                                    (cons 'name "cryptroot")
-                                                                    (cons 'passphrase first))))))))))))))))))
+                      disks))
+         (efi? (eq? (firmware-bootloader) 'grub-efi))
+         (fields (list (make-field "Target disk" 'menu
+                                   (if (pair? labels) (car labels) "no disk found")
+                                   labels)
+                       (make-field "Layout" 'menu "standard partitions"
+                                   (list "standard partitions" "LVM"))
+                       (make-field "Root filesystem" 'menu "ext4"
+                                   (list "ext4" "btrfs" "xfs"))
+                       (make-field "ESP size (MiB)" 'menu 1024 (list 512 1024 2048))
+                       (make-field "Swap size (MiB)" 'menu 0 (list 0 1024 2048 4096 8192))
+                       (make-field "Root size (MiB)" 'menu 0 (list 0 8192 16384 32768))
+                       (make-field "Encrypt root" 'menu "no" (list "no" "yes (LUKS1)"))
+                       (make-field "Continue" 'action #f '())))
+         (r (form win "Storage" fields)))
+    (let* ((label (field-value (list-ref r 0)))
+           (index (or (list-index (lambda (l) (equal? l label)) labels) 0))
+           (entry (list-ref disks index))
+           (disk (%disk-name entry))
+           (total (%disk-mib entry))
+           (mode (if (equal? "LVM" (field-value (list-ref r 1))) 'lvm 'simple))
+           (fs (field-value (list-ref r 2)))
+           (esp (field-value (list-ref r 3)))
+           (swap (field-value (list-ref r 4)))
+           (root (field-value (list-ref r 5)))
+           (encrypt (equal? "yes (LUKS1)" (field-value (list-ref r 6)))))
+      (clear win)
+      (box win (acs-vline) (acs-hline))
+      (put win 0 2 " Planned layout ")
+      (show-plan win total efi? esp swap root)
+      (put win (+ 7 (length (car (layout-rows total efi? esp swap root)))) 2
+           (format #f "Filesystem: ~a    Layout: ~a" fs mode))
+      (put win (+ 8 (length (car (layout-rows total efi? esp swap root)))) 2
+           "Enter accepts    Esc changes the values")
+      (refresh win)
+      (let ((k (key-code (getch win))))
+        (cond ((= k 27) (page-storage win wizard))
+              ((= k 3) (quit!))
+              (else
+               (let ((storage (storage-answers mode disk
+                                               #:esp-size esp #:swap-size swap
+                                               #:root-size root #:filesystem fs)))
+                 (if (not encrypt)
+                     (wizard-next (wizard-set wizard 'storage storage))
+                     (begin
+                       (clear win) (box win (acs-vline) (acs-hline))
+                       (put win 2 2 "Passphrase for the encrypted root:")
+                       (let ((first (read-line* win 4 2 "> " "" #f)))
+                         (put win 6 2 "Again:")
+                         (let ((again (read-line* win 8 2 "> " "" #f)))
+                           (unless (equal? first again)
+                             (error "the two passphrases do not match"))
+                           (when (> swap 0)
+                             (error "an encrypted install cannot keep a separate swap partition; choose 0"))
+                           (when (eq? mode 'lvm)
+                             (error "encryption is not implemented for LVM storage yet"))
+                           (wizard-next
+                            (wizard-set wizard 'storage
+                                        (storage-answers
+                                         mode disk #:esp-size esp #:swap-size swap
+                                         #:root-size root #:filesystem fs
+                                         #:encryption
+                                         (list (cons 'mode 'luks)
+                                               (cons 'name "cryptroot")
+                                               (cons 'passphrase first))))))))))))))))
 
 (define %keyboards
   '("us" "gb" "de" "fr" "es" "it" "se" "dvorak"))
@@ -428,20 +499,18 @@ see why: hiding a disk they expect is worse than showing it with a warning."
   '("en_US.utf8" "de_DE.utf8" "fr_FR.utf8" "zh_CN.utf8" "ja_JP.utf8"))
 
 (define (page-locale win wizard)
-  (frame win wizard)
-  (let ((keyboard (pick win 3 (tr wizard 'keyboard) %keyboards)))
-    (frame win wizard)
-    (let ((timezone (pick win 3 (tr wizard 'timezone) %timezones)))
-      (frame win wizard)
-      (let ((locale (pick win 3 (tr wizard 'locale) %locales)))
-        (frame win wizard)
-        (let ((ntp (choose win 3 (tr wizard 'ntp) (list "yes" "no") 0)))
-          (wizard-next
-           (wizard-set
-            (wizard-set (wizard-set (wizard-set wizard 'keyboard keyboard)
-                                    'timezone timezone)
-                        'locale locale)
-            'ntp (zero? ntp))))))))
+  (let* ((fields (list (make-field "Keyboard layout" 'menu "us" %keyboards)
+                       (make-field "Timezone" 'menu "UTC" %timezones)
+                       (make-field "Locale" 'menu "en_US.utf8" %locales)
+                       (make-field "NTP time sync" 'menu "yes" (list "yes" "no"))
+                       (make-field "Continue" 'action #f '())))
+         (r (form win "Localisation" fields)))
+    (wizard-next
+     (wizard-set
+      (wizard-set (wizard-set (wizard-set wizard 'keyboard (field-value (list-ref r 0)))
+                              'timezone (field-value (list-ref r 1)))
+                  'locale (field-value (list-ref r 2)))
+      'ntp (equal? "yes" (field-value (list-ref r 3)))))))
 
 (define (page-source win wizard)
   (let loop ((services (list (list (cons 'url "https://ci.guix.gnu.org")
@@ -479,47 +548,33 @@ see why: hiding a disk they expect is worse than showing it with a warning."
                        'proxy (if (string-null? proxy) #f proxy)))))))))
 
 (define (page-boot win wizard)
-  (frame win wizard)
   (let* ((default-index (if (eq? (firmware-bootloader) 'grub-efi) 1 0))
-         (choice (choose win 3 (tr wizard 'bootloader)
-                         (list "grub-bios" "grub-efi") default-index)))
-    (frame win wizard)
-    (let ((wait (ask wizard win 3 (tr wizard 'timeout) "5")))
-      (frame win wizard)
-      (put win 2 2 "Extra kernel arguments")
-      (put win 3 2 "Most machines need none; serial consoles need console=ttyS0.")
-      (let ((args-choice (choose win 5 "Kernel arguments"
-                                 (list "keep the default (quiet)"
-                                       "none"
-                                       "edit the list") 0)))
-        (let ((arguments
-               (cond ((= args-choice 0) (list "quiet"))
-                     ((= args-choice 1) '())
-                     (else
-                      (frame win wizard)
-                      (put win 3 2 "Space separated, e.g. console=ttyS0 quiet")
-                      (let ((line (read-line* win 5 2 "> " "quiet" #t)))
-                        (string-tokenize line))))))
-          (frame win wizard)
-          (put win 3 2 "Serial console for this machine?")
-          (put win 4 2 "Needed when there is no monitor, and to unlock an")
-          (put win 5 2 "encrypted disk without one.")
-          (let ((serial (choose win 7 "Serial console"
-                                (list "no" "yes (ttyS0, 115200)") 0)))
-            (wizard-next
-             (wizard-set
-              (wizard-set
-               (wizard-set
-                (wizard-set wizard 'boot
-                            (append (list (cons 'bootloader
-                                                (if (zero? choice) 'grub-bios 'grub-efi))
-                                          (cons 'timeout (or (string->number wait) 5)))
-                                    (cons 'extra-kernel-arguments arguments)
-                                    (if (zero? serial)
-                                        '()
-                                        (list (cons 'terminal-outputs '(console serial))
-                                              (cons 'terminal-inputs '(serial))))))
-                'bootloader (if (zero? choice) 'grub-bios 'grub-efi)))))))))))
+         (fields (list (make-field "Bootloader" 'menu
+                                   (if (= default-index 1) "grub-efi" "grub-bios")
+                                   (list "grub-bios" "grub-efi"))
+                       (make-field "Menu timeout (s)" 'menu 5 (list 0 3 5 10 30))
+                       (make-field "Kernel arguments" 'menu "quiet"
+                                   (list "quiet" "none" "console=ttyS0 quiet"))
+                       (make-field "Serial console" 'menu "no" (list "no" "yes (ttyS0)"))
+                       (make-field "Continue" 'action #f '())))
+         (r (form win "Boot loader" fields))
+         (bootloader (string->symbol (field-value (list-ref r 0))))
+         (timeout (field-value (list-ref r 1)))
+         (args (field-value (list-ref r 2)))
+         (serial (equal? "yes (ttyS0)" (field-value (list-ref r 3))))
+         (arguments (cond ((equal? args "quiet") (list "quiet"))
+                          ((equal? args "none") '())
+                          (else (string-tokenize args)))))
+    (wizard-next
+     (wizard-set
+      wizard 'boot
+      (append (list (cons 'bootloader bootloader)
+                    (cons 'timeout timeout)
+                    (cons 'extra-kernel-arguments arguments))
+              (if serial
+                  (list (cons 'terminal-outputs '(console serial))
+                        (cons 'terminal-inputs '(serial)))
+                  '()))))))
 
 (define (page-software win wizard)
   (let ((names (ask wizard win 3 (tr wizard 'packages) "")))
@@ -532,12 +587,13 @@ see why: hiding a disk they expect is worse than showing it with a warning."
                                      (string-split names #\space)))))))))
 
 (define (page-network win wizard)
-  (let ((name (ask wizard win 3 (tr wizard 'hostname) "gradus")))
-    (if (back? name)
-        (wizard-back wizard)
-        (wizard-next
-         (wizard-set (wizard-set wizard 'host-name name)
-                     'network (list (cons 'management 'dhcp)))))))
+  (let* ((fields (list (make-field "Host name" 'text "gradus" '())
+                       (make-field "Address" 'menu "DHCP" (list "DHCP"))
+                       (make-field "Continue" 'action #f '())))
+         (r (form win "Network" fields)))
+    (wizard-next
+     (wizard-set (wizard-set wizard 'host-name (field-value (list-ref r 0)))
+                 'network (list (cons 'management 'dhcp))))))
 
 (define (page-users win wizard)
   (let* ((name (ask wizard win 3 (tr wizard 'username) "user"))
