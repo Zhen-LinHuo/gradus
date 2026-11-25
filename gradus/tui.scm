@@ -345,6 +345,8 @@ see why: hiding a disk they expect is worse than showing it with a warning."
   (put win (+ 4 (length fields) 2) 2 "j/k or arrows move   Enter choose   Esc back   Ctrl-C quit")
   (refresh win))
 
+(define %cancelled (list 'cancelled))
+
 (define (edit-field win field)
   "Edit one field.  Menus are the default; text is the exception.
 
@@ -353,7 +355,7 @@ and the form keeps whatever it had.  Leaving the page takes another back press,
 on the form itself."
   (let ((kind (field-kind field)))
     (call-with-back-handler
-     (lambda () (field-value field))
+     (lambda () %cancelled)
      (lambda ()
        (cond
         ((eq? kind 'menu)
@@ -365,14 +367,17 @@ on the form itself."
                            (cond ((null? o) 0)
                                  ((equal? (car o) (show-value (field-value field))) i)
                                  (else (loop (cdr o) (+ i 1)))))))
-           (list-ref (field-options field)
-                     (choose win 3 (field-label field) options current))))
+           (let ((picked (choose win 3 (field-label field) options current)))
+             (if (integer? picked)
+                 (list-ref (field-options field) picked)
+                 (field-value field)))))
         ((eq? kind 'text)
          (clear win)
          (box win (acs-vline) (acs-hline))
          (put win 0 2 (format #f " ~a " (field-label field)))
          (put win 3 2 "Type a value; Enter accepts.")
-         (read-line* win 5 2 "> " (show-value (field-value field)) #t))
+         (let ((typed (read-line* win 5 2 "> " (show-value (field-value field)) #t)))
+           (if (string? typed) typed (field-value field))))
         (else (field-value field)))))))
 
 (define (form win title fields)
