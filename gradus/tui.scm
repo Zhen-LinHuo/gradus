@@ -535,7 +535,10 @@ see why: hiding a disk they expect is worse than showing it with a warning."
 (define (run-tui)
   "Run the interactive installer in this terminal."
   (let ((win (initscr)))
-    (cbreak!)
+    ;; raw mode, not cbreak: cbreak leaves ISIG on, so ^C would signal the
+    ;; process instead of reaching us as a key, and the installer has to shut
+    ;; the terminal down cleanly itself.
+    (raw!)
     (let loop ((wizard (make-wizard)))
       (cond
        ((wizard-complete? wizard)
