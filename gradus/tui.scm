@@ -89,8 +89,13 @@
   (clear win)
   (box win (acs-vline) (acs-hline))
   (put win 0 2 (format #f " ~a " (tr wizard 'title)))
-  (let ((rows (getmaxy win)))
-    (put win (- rows 2) 2 "Esc: back    Ctrl-C: quit")
+  (let* ((rows (getmaxy win))
+         (previous (wizard-back wizard))
+         (hint (if (eq? (wizard-step previous) (wizard-step wizard))
+                   "Esc: first page    Ctrl-C: quit"
+                   (format #f "Esc: back to ~a    Ctrl-C: quit"
+                           (wizard-step previous)))))
+    (put win (- rows 2) 2 hint)
     (put win (- rows 1) 2
          (format #f " ~a: ~a " (tr wizard 'step) (wizard-step wizard))))
   (refresh win))
