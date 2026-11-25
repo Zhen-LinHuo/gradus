@@ -68,13 +68,14 @@ always type another number, including 0."
   (min 8192 (max 1024 ram-mib)))
 
 (define* (storage-answers mode disk #:key (esp-size 1024) (swap-size 0)
-                          (root-size 0) encryption)
+                          (root-size 0) filesystem encryption)
   "The storage answer for MODE and DISK.  It is an alist, and it is built here
 so that a front-end cannot get the shape wrong."
   (append (list (cons 'mode mode) (cons 'disk disk)
                 (cons 'esp-size esp-size)
                 (cons 'swap-size swap-size)
-                (cons 'root-size root-size))
+                (cons 'root-size root-size)
+                (cons 'filesystem (or filesystem "ext4")))
           (if encryption (list (cons 'encryption encryption)) '())
           (if (eq? mode 'lvm)
               '((volume-group . "vg0")

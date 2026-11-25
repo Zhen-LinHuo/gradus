@@ -157,19 +157,20 @@ map is keyed by label strings, so the lookup is by `assoc-ref'."
 system partition on an EFI machine.  A BIOS machine has a BIOS Boot partition
 instead, which carries no file system and is not mounted.  Devices are
 addressed by UUID when the map knows them, by label otherwise."
-  (append
-   (list (file-system
-           (mount-point "/")
-           (device (if (encryption answers)
-                       (string-append "/dev/mapper/" (crypt-name answers))
-                       (file-system-by-label %root-label "ext4" device-map)))
-           (type "ext4")))
-   (if efi?
-       (list (file-system
-               (mount-point "/boot/efi")
-               (device (file-system-by-label %esp-label "vfat" device-map))
-               (type "vfat")))
-       '())))
+  (let ((fs (or (assq-ref (assq-ref answers 'storage) 'filesystem) "ext4")))
+    (append
+     (list (file-system
+             (mount-point "/")
+             (device (if (encryption answers)
+                         (string-append "/dev/mapper/" (crypt-name answers))
+                         (file-system-by-label %root-label fs device-map)))
+             (type fs)))
+     (if efi?
+         (list (file-system
+                 (mount-point "/boot/efi")
+                 (device (file-system-by-label %esp-label "vfat" device-map))
+                 (type "vfat")))
+         '()))))
 
 (define (lvm-root-volume storage)
   "Return the volume named root in STORAGE, or #f."

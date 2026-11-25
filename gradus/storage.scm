@@ -189,9 +189,16 @@ for, is LUKS1 because GRUB has to read the root file system at boot."
                       (error "cryptsetup open failed" root-part))))
                  mapper)
                root-part)))
-      (unless (zero? (run-command/stream "mkfs.ext4" "-q" "-F"
-                                         "-L" "gradus-root" root-device))
-        (error "mkfs.ext4 failed" root-device))
+      (let* ((fs (or (assq-ref storage 'filesystem) "ext4"))
+             (command (cond ((string=? fs "xfs")
+                             (list "mkfs.xfs" "-f" "-L" "gradus-root" root-device))
+                            ((string=? fs "btrfs")
+                             (list "mkfs.btrfs" "-f" "-L" "gradus-root" root-device))
+                            (else
+                             (list "mkfs.ext4" "-q" "-F" "-L" "gradus-root"
+                                   root-device)))))
+        (unless (zero? (apply run-command/stream command))
+          (error (format #f "~a failed" (car command)) root-device)))
       (append
        (read-device-map (append (if efi? (list first-part) '())
                                 (if swap-part (list swap-part) '())
