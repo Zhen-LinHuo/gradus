@@ -400,6 +400,17 @@ fields once an `action' row is activated."
           (read-line* win (+ y 4 n) 2 "> " "" #t))
         (list-ref items i))))
 
+(define (size-of win label value)
+  "A size from a menu, or a typed value when the menu offered `custom'."
+  (if (equal? value "custom (type a value)")
+      (begin
+        (clear win)
+        (box win (acs-vline) (acs-hline))
+        (put win 2 2 (string-append label " in MiB (0 has the usual meaning):"))
+        (let ((line (read-line* win 4 2 "> " "" #t)))
+          (or (string->number line) 0)))
+      value))
+
 (define (layout-rows total efi? esp swap root)
   "The plan as (name start size) rows, plus the MiB used."
   (let* ((first (if efi? esp 1))
@@ -446,9 +457,12 @@ fields once an `action' row is activated."
                                    (list "standard partitions" "LVM"))
                        (make-field "Root filesystem" 'menu "ext4"
                                    (list "ext4" "btrfs" "xfs"))
-                       (make-field "ESP size (MiB)" 'menu 1024 (list 512 1024 2048))
-                       (make-field "Swap size (MiB)" 'menu 0 (list 0 1024 2048 4096 8192))
-                       (make-field "Root size (MiB)" 'menu 0 (list 0 8192 16384 32768))
+                       (make-field "ESP size (MiB, EFI only)" 'menu 1024
+                                   (list 512 1024 2048 "custom (type a value)"))
+                       (make-field "Swap size (MiB, 0 = none)" 'menu 0
+                                   (list 0 1024 2048 4096 8192 "custom (type a value)"))
+                       (make-field "Root size (MiB, 0 = rest of disk)" 'menu 0
+                                   (list 0 8192 16384 32768 "custom (type a value)"))
                        (make-field "Encrypt root" 'menu "no" (list "no" "yes (LUKS1)"))
                        (make-field "Continue" 'action #f '())))
          (r (form win "Storage" fields)))
@@ -459,9 +473,9 @@ fields once an `action' row is activated."
            (total (%disk-mib entry))
            (mode (if (equal? "LVM" (field-value (list-ref r 1))) 'lvm 'simple))
            (fs (field-value (list-ref r 2)))
-           (esp (field-value (list-ref r 3)))
-           (swap (field-value (list-ref r 4)))
-           (root (field-value (list-ref r 5)))
+           (esp (size-of win "ESP size" (field-value (list-ref r 3))))
+           (swap (size-of win "Swap size" (field-value (list-ref r 4))))
+           (root (size-of win "Root size" (field-value (list-ref r 5))))
            (encrypt (equal? "yes (LUKS1)" (field-value (list-ref r 6)))))
       (clear win)
       (box win (acs-vline) (acs-hline))
@@ -504,14 +518,32 @@ fields once an `action' row is activated."
                                                (cons 'passphrase first))))))))))))))))
 
 (define %keyboards
-  '("us" "gb" "de" "fr" "es" "it" "se" "dvorak"))
+  '("us" "gb" "de" "fr" "es" "it" "pt" "nl" "be" "ch" "at" "se" "no" "dk"
+    "fi" "is" "pl" "cz" "sk" "hu" "ro" "ru" "ua" "tr" "gr" "il" "br" "ca"
+    "dvorak" "colemak"))
 
 (define %timezones
-  '("UTC" "Europe/Berlin" "Europe/London" "Asia/Shanghai" "Asia/Tokyo"
-    "America/New_York" "America/Los_Angeles"))
+  '("UTC" "Europe/London" "Europe/Dublin" "Europe/Lisbon" "Europe/Madrid"
+    "Europe/Paris" "Europe/Brussels" "Europe/Amsterdam" "Europe/Berlin"
+    "Europe/Zurich" "Europe/Vienna" "Europe/Prague" "Europe/Warsaw"
+    "Europe/Budapest" "Europe/Rome" "Europe/Athens" "Europe/Helsinki"
+    "Europe/Stockholm" "Europe/Oslo" "Europe/Copenhagen" "Europe/Kyiv"
+    "Europe/Moscow" "Europe/Istanbul" "Asia/Jerusalem" "Asia/Dubai"
+    "Asia/Karachi" "Asia/Kolkata" "Asia/Dhaka" "Asia/Bangkok"
+    "Asia/Shanghai" "Asia/Hong_Kong" "Asia/Taipei" "Asia/Singapore"
+    "Asia/Tokyo" "Asia/Seoul" "Australia/Sydney" "Australia/Perth"
+    "Pacific/Auckland" "America/Sao_Paulo" "America/Argentina/Buenos_Aires"
+    "America/Santiago" "America/Mexico_City" "America/Los_Angeles"
+    "America/Denver" "America/Chicago" "America/New_York" "America/Toronto"
+    "Africa/Cairo" "Africa/Lagos" "Africa/Johannesburg" "Africa/Nairobi"))
 
 (define %locales
-  '("en_US.utf8" "de_DE.utf8" "fr_FR.utf8" "zh_CN.utf8" "ja_JP.utf8"))
+  '("en_US.utf8" "en_GB.utf8" "de_DE.utf8" "fr_FR.utf8" "es_ES.utf8"
+    "it_IT.utf8" "pt_PT.utf8" "pt_BR.utf8" "nl_NL.utf8" "sv_SE.utf8"
+    "da_DK.utf8" "fi_FI.utf8" "nb_NO.utf8" "pl_PL.utf8" "cs_CZ.utf8"
+    "ru_RU.utf8" "uk_UA.utf8" "tr_TR.utf8" "el_GR.utf8" "he_IL.utf8"
+    "ar_SA.utf8" "hi_IN.utf8" "zh_CN.utf8" "zh_TW.utf8" "ja_JP.utf8"
+    "ko_KR.utf8"))
 
 (define (page-locale win wizard)
   (let* ((fields (list (make-field "Keyboard layout" 'menu "us" %keyboards)
