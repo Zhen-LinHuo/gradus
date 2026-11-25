@@ -620,14 +620,43 @@ fields once an `action' row is activated."
                          cursor))))
             (else (loop selected cursor))))))
 
+(define (%interfaces)
+  "Names of the network interfaces on this machine."
+  (let ((dir (opendir "/sys/class/net")))
+    (let loop ((found '()))
+      (let ((entry (readdir dir)))
+        (cond ((eof-object? entry) (closedir dir) (reverse found))
+              ((member entry '("." ".." "lo")) (loop found))
+              (else (loop (cons entry found))))))))
+
 (define (page-network win wizard)
   (let* ((fields (list (make-field "Host name" 'text "gradus" '())
-                       (make-field "Address" 'menu "DHCP" (list "DHCP"))
+                       (make-field "Address" 'menu "Automatic (DHCP)"
+                                   (list "Automatic (DHCP)" "Static"))
                        (make-field "Continue" 'action #f '())))
-         (r (form win "Network" fields)))
-    (wizard-next
-     (wizard-set (wizard-set wizard 'host-name (field-value (list-ref r 0)))
-                 'network (list (cons 'management 'dhcp))))))
+         (r (form win "Network" fields))
+         (host (field-value (list-ref r 0)))
+         (static? (equal? "Static" (field-value (list-ref r 1)))))
+    (if (not static?)
+        (wizard-next (wizard-set (wizard-set wizard 'host-name host)
+                                 'network (list (cons 'management 'dhcp))))
+        (let* ((ifs (%interfaces))
+               (r2 (form win "Static address"
+                         (list (make-field "Interface" 'menu
+                                           (if (pair? ifs) (car ifs) "eth0")
+                                           (if (pair? ifs) ifs (list "eth0")))
+                               (make-field "Address/prefix" 'text "192.168.1.10/24" '())
+                               (make-field "Gateway" 'text "192.168.1.1" '())
+                               (make-field "DNS" 'text "1.1.1.1" '())
+                               (make-field "Continue" 'action #f '())))))
+          (wizard-next
+           (wizard-set (wizard-set wizard 'host-name host)
+                       'network (list (cons 'management 'static)
+                                      (cons 'interface (field-value (list-ref r2 0)))
+                                      (cons 'address (field-value (list-ref r2 1)))
+                                      (cons 'gateway (field-value (list-ref r2 2)))
+                                      (cons 'name-servers
+                                            (list (field-value (list-ref r2 3)))))))))))
 
 (define (page-users win wizard)
   (let* ((name (ask wizard win 3 (tr wizard 'username) "user"))
