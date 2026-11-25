@@ -778,7 +778,7 @@ fields once an `action' row is activated."
                                 "change users")
                           0)))
       (case choice
-        ((0) (wizard-next (wizard-set wizard 'reviewed #t)))
+        ((0) (wizard-next wizard)   ; the answers schema has no `reviewed' key)
         ((1) (wizard-goto wizard 'locale))
         ((2) (wizard-goto wizard 'storage))
         ((3) (wizard-goto wizard 'boot))

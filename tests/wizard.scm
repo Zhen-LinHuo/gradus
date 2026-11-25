@@ -71,6 +71,24 @@
     (validate-answers answers)
     #t))
 
+
+;; A wizard that has been through every page must produce answers the
+;; validator accepts: the pages may not smuggle front-end state (the interface
+;; language, the "I have reviewed this" flag) into the answer file.
+(test-assert "a fully answered wizard validates"
+  (let ((w (make-wizard)))
+    (for-each (lambda (pair)
+                (set! w (wizard-set w (car pair) (cdr pair))))
+              `((keyboard . "us") (timezone . "UTC") (locale . "en_US.utf8")
+                (ntp . #t) (host-name . "vm0")
+                (storage . ((mode . simple) (disk . "/dev/vda")))
+                (boot . ((bootloader . grub-efi) (timeout . 5)))
+                (software . ((extra-packages)))
+                (network . ((management . dhcp)))
+                (users . (((name . "user") (group . "users"))))))
+    (validate-answers (with-defaults (wizard-answers w)))
+    #t))
+
 (test-equal "the default bootloader follows the firmware"
   (if (file-exists? "/sys/firmware/efi") 'grub-efi 'grub-bios)
   (firmware-bootloader))
