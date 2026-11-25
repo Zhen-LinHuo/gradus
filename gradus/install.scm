@@ -49,22 +49,22 @@ success; raise on the first failure."
 
 (define (install-config config-file root)
   "Validate CONFIG-FILE and install it beneath ROOT."
-  (log-line "checking ~a" config-file)
+  (log-line "==> [1/4] checking the declaration: ~a" config-file)
   (unless (zero? (run-command/stream "guix" "system" "build"
                                      "--dry-run" "--no-grafts" config-file))
     (exit +exit-validation+))
   (let ((os (load-configuration config-file)))
-    (log-line "mounting the target beneath ~a" root)
+    (log-line "==> [2/4] mounting the target beneath ~a" root)
     (catch #t
       (lambda () (mount-plan (configuration-plan os) root))
       (lambda (key . args)
         (log-line "cannot prepare the target: ~a" args)
         (exit +exit-target+)))
-    (log-line "installing")
+    (log-line "==> [3/4] installing the system (downloads may take 10-30 minutes)")
     (unless (zero? (run-command/stream "guix" "system" "init" config-file root))
       (exit +exit-install+))
     (write-provenance root config-file "config")
-    (log-line "installed; declaration kept at ~a/etc/config.scm" root)))
+    (log-line "==> [4/4] installed; declaration kept at ~a/etc/config.scm" root)))
 
 (define (substitute-urls answers)
   "The substitute URLs declared in ANSWERS, in the order written."
