@@ -67,6 +67,10 @@ success; raise on the first failure."
                                (string-append "find " root
                                               " -mindepth 1 -maxdepth 1 -exec rm -rf {} +"))))
         (error "cannot empty the target directory" root)))
+    ;; mkfs has just written a label; the /dev/disk/by-label link appears once
+    ;; udev has looked at the device.  Without this, mounting by label fails
+    ;; with "can't find LABEL=...".
+    (system* "sh" "-c" "udevadm trigger --settle 2>/dev/null || true")
     (log-line "==> [2/4] mounting the target beneath ~a" root)
     (catch #t
       (lambda () (mount-plan (configuration-plan os) root))
