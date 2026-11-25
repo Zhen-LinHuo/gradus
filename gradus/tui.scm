@@ -89,13 +89,41 @@
   (clear win)
   (box win (acs-vline) (acs-hline))
   (put win 0 2 (format #f " ~a " (tr wizard 'title)))
-  (let ((rows (getmaxy win)))
-    (put win (- rows 2) 2 "Esc: back    Ctrl-C: quit")
+  (let* ((rows (getmaxy win))
+         (previous (wizard-back wizard))
+         (hint (if (eq? (wizard-step previous) (wizard-step wizard))
+                   "Esc: first page    Ctrl-C: quit"
+                   (format #f "Esc: back to ~a    Ctrl-C: quit"
+                           (wizard-step previous)))))
+    (put win (- rows 2) 2 hint)
     (put win (- rows 1) 2
          (format #f " ~a: ~a " (tr wizard 'step) (wizard-step wizard))))
   (refresh win))
 
 ;; ----------------------------------------------------------------- input
+
+
+;; ------------------------------------------------------------ back handling
+;;
+;; Every widget asks to go back through %back-handler.  The innermost container
+;; decides what "back" means there: a field cancels its edit, a form keeps its
+;; values, and only the page loop moves to the previous page.  New widgets get
+;; the right behaviour by calling (request-back!) and nothing else.
+
+;; NB: make-parameter treats a procedure argument as a converter, not as the
+;; initial value, so the default is #f and the outermost meaning of "back" is
+;; applied by REQUEST-BACK! itself.
+(define %back-handler (make-parameter #f))
+
+(define (request-back!)
+  "Go back one step: whatever the innermost container says that means."
+  (let ((handler (%back-handler)))
+    (if handler (handler) (throw 'gradus-back #t))))
+
+(define (call-with-back-handler handler thunk)
+  "Run THUNK with HANDLER as the meaning of \"back\" for its widgets."
+  (parameterize ((%back-handler handler))
+    (thunk)))
 
 (define %back 'gradus-back)
 
@@ -142,9 +170,8 @@ also quits.  The default is pre-filled so it can be edited rather than retyped."
     (draw-line win y x prompt chars pos show?)
     (let ((k (key-code (getch win))))
       (cond ((or (= k 10) (= k 13)) (list->string chars))
-            ((= k 27) (throw 'gradus-back #t))
+            ((= k 27) (request-back!))
             ((= k 3) (quit!))
-            ((and (= k 113) (null? chars)) (quit!))
             ((or (= k KEY_BACKSPACE) (= k 127) (= k 8))
              (loop (delete-before chars pos) (max 0 (- pos 1))))
             ((= k KEY_DC) (loop (delete-at chars pos) pos))
@@ -174,9 +201,8 @@ also quits.  The default is pre-filled so it can be edited rather than retyped."
     (refresh win)
     (let ((k (key-code (getch win))))
       (cond ((or (= k 10) (= k 13)) selected)
-            ((= k 27) (throw 'gradus-back #t))
+            ((= k 27) (request-back!))
             ((= k 3) (quit!))
-            ((= k 113) (quit!))
             ((or (= k KEY_UP) (= k 107))
              (loop (max 0 (- selected 1))))
             ((or (= k KEY_DOWN) (= k 106))
@@ -320,27 +346,34 @@ see why: hiding a disk they expect is worse than showing it with a warning."
   (refresh win))
 
 (define (edit-field win field)
-  "Edit one field.  Menus are the default; text is the exception."
+  "Edit one field.  Menus are the default; text is the exception.
+
+Back inside a field cancels that field: the list closes or the edit is dropped,
+and the form keeps whatever it had.  Leaving the page takes another back press,
+on the form itself."
   (let ((kind (field-kind field)))
-    (cond
-     ((eq? kind 'menu)
-      (clear win)
-      (box win (acs-vline) (acs-hline))
-      (put win 0 2 (format #f " ~a " (field-label field)))
-      (let* ((options (map show-value (field-options field)))
-             (current (let loop ((o options) (i 0))
-                        (cond ((null? o) 0)
-                              ((equal? (car o) (show-value (field-value field))) i)
-                              (else (loop (cdr o) (+ i 1)))))))
-        (list-ref (field-options field)
-                  (choose win 3 (field-label field) options current))))
-     ((eq? kind 'text)
-      (clear win)
-      (box win (acs-vline) (acs-hline))
-      (put win 0 2 (format #f " ~a " (field-label field)))
-      (put win 3 2 "Type a value; Enter accepts.")
-      (read-line* win 5 2 "> " (show-value (field-value field)) #t))
-     (else (field-value field)))))
+    (call-with-back-handler
+     (lambda () (field-value field))
+     (lambda ()
+       (cond
+        ((eq? kind 'menu)
+         (clear win)
+         (box win (acs-vline) (acs-hline))
+         (put win 0 2 (format #f " ~a " (field-label field)))
+         (let* ((options (map show-value (field-options field)))
+                (current (let loop ((o options) (i 0))
+                           (cond ((null? o) 0)
+                                 ((equal? (car o) (show-value (field-value field))) i)
+                                 (else (loop (cdr o) (+ i 1)))))))
+           (list-ref (field-options field)
+                     (choose win 3 (field-label field) options current))))
+        ((eq? kind 'text)
+         (clear win)
+         (box win (acs-vline) (acs-hline))
+         (put win 0 2 (format #f " ~a " (field-label field)))
+         (put win 3 2 "Type a value; Enter accepts.")
+         (read-line* win 5 2 "> " (show-value (field-value field)) #t))
+        (else (field-value field)))))))
 
 (define (form win title fields)
   "A page made of rows: move with the arrows, Enter picks a value.  Returns the
@@ -356,7 +389,7 @@ fields once an `action' row is activated."
             ;; get through a serial console than a run of arrows.
             ((and (>= k 49) (<= k 57) (<= (- k 49) (- (length fields) 1)))
              (loop fields (- k 49)))
-            ((= k 27) (throw 'gradus-back #t))
+            ((= k 27) (request-back!))
             ((= k 3) (quit!))
             ;; c: accept the page without walking to its Continue row
             ((and (= k 99)
@@ -650,7 +683,7 @@ fields once an `action' row is activated."
       (cond ((= k KEY_UP) (loop selected (max 0 (- cursor 1))))
             ((= k KEY_DOWN)
              (loop selected (min (length %extra-packages) (+ cursor 1))))
-            ((= k 27) (throw 'gradus-back #t))
+            ((= k 27) (request-back!))
             ((= k 3) (quit!))
             ((= k 99)                      ; c: accept
              (wizard-next
