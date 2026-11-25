@@ -444,47 +444,82 @@ see why: hiding a disk they expect is worse than showing it with a warning."
             'ntp (zero? ntp))))))))
 
 (define (page-source win wizard)
-  (let* ((url (ask wizard win 3 (tr wizard 'substitute)
-                   "https://ci.guix.gnu.org"))
-         (proxy (ask wizard win 6 (tr wizard 'proxy) "")))
-    (cond
-     ((back? url) (wizard-back wizard))
-     ((back? proxy) (wizard-back wizard))
-     (else
-      (let* ((services (if (string-null? url)
-                           '()
-                           (list (list (cons 'name "primary")
-                                       (cons 'url url)
-                                       (cons 'kind 'official)))))
-             (source (append
-                      (if (null? services) '()
-                          (list (cons 'substitute-services services)))
-                      (if (string-null? proxy) '()
-                          (list (cons 'proxy
-                                      (list (cons 'http proxy)
-                                            (cons 'https proxy)
-                                            (cons 'no-proxy '()))))))))
-        (wizard-next (wizard-set wizard 'source source)))))))
+  (let loop ((services (list (list (cons 'url "https://ci.guix.gnu.org")
+                                  (cons 'kind 'official)))))
+    (frame win wizard)
+    (put win 2 2 "Substitute servers, tried in this order:")
+    (let draw ((items services) (row 4) (n 1))
+      (unless (null? items)
+        (put win row 4 (format #f "~a) ~a" n (assq-ref (car items) 'url)))
+        (draw (cdr items) (+ row 1) (+ n 1))))
+    (let* ((row (+ 5 (length services)))
+           (action (choose win row "What next?"
+                           (list "add a server" "remove a server" "continue")
+                           2)))
+      (cond
+       ((= action 0)
+        (frame win wizard)
+        (put win 3 2 "Server URL (a mirror, or a guix publish instance):")
+        (let ((url (read-line* win 5 2 "> " "https://" #t)))
+          (loop (append services
+                        (list (list (cons 'url url) (cons 'kind 'mirror)))))))
+       ((= action 1)
+        (if (null? services)
+            (loop services)
+            (let* ((labels (map (lambda (s) (assq-ref s 'url)) services))
+                   (i (choose win row "Remove which server?" labels 0)))
+              (loop (append (take services i) (drop services (+ i 1)))))))
+       (else
+        (frame win wizard)
+        (put win 3 2 "HTTP proxy for the installation (empty for none):")
+        (let ((proxy (read-line* win 5 2 "> " "" #t)))
+          (wizard-next
+           (wizard-set (wizard-set wizard 'source
+                                   (list (cons 'substitute-services services)))
+                       'proxy (if (string-null? proxy) #f proxy)))))))))
 
 (define (page-boot win wizard)
+  (frame win wizard)
   (let* ((default-index (if (eq? (firmware-bootloader) 'grub-efi) 1 0))
-         (choice (ask-number wizard win 3 (tr wizard 'bootloader)
-                             (list "grub-bios" "grub-efi") default-index))
-         (wait (ask wizard win 7 (tr wizard 'timeout) "5"))
-         (args (ask wizard win 10 (tr wizard 'kernel-args) "")))
-    (cond
-     ((back? wait) (wizard-back wizard))
-     ((back? args) (wizard-back wizard))
-     (else
-      (let* ((bootloader (if (zero? choice) 'grub-bios 'grub-efi))
-             (seconds (or (string->number wait) 5))
-             (arguments (if (string-null? args)
-                            '()
-                            (string-split args #\space)))
-             (boot (list (cons 'bootloader bootloader)
-                         (cons 'timeout seconds)
-                         (cons 'extra-kernel-arguments arguments))))
-        (wizard-next (wizard-set wizard 'boot boot)))))))
+         (choice (choose win 3 (tr wizard 'bootloader)
+                         (list "grub-bios" "grub-efi") default-index)))
+    (frame win wizard)
+    (let ((wait (ask wizard win 3 (tr wizard 'timeout) "5")))
+      (frame win wizard)
+      (put win 2 2 "Extra kernel arguments")
+      (put win 3 2 "Most machines need none; serial consoles need console=ttyS0.")
+      (let ((args-choice (choose win 5 "Kernel arguments"
+                                 (list "keep the default (quiet)"
+                                       "none"
+                                       "edit the list") 0)))
+        (let ((arguments
+               (cond ((= args-choice 0) (list "quiet"))
+                     ((= args-choice 1) '())
+                     (else
+                      (frame win wizard)
+                      (put win 3 2 "Space separated, e.g. console=ttyS0 quiet")
+                      (let ((line (read-line* win 5 2 "> " "quiet" #t)))
+                        (string-tokenize line))))))
+          (frame win wizard)
+          (put win 3 2 "Serial console for this machine?")
+          (put win 4 2 "Needed when there is no monitor, and to unlock an")
+          (put win 5 2 "encrypted disk without one.")
+          (let ((serial (choose win 7 "Serial console"
+                                (list "no" "yes (ttyS0, 115200)") 0)))
+            (wizard-next
+             (wizard-set
+              (wizard-set
+               (wizard-set
+                (wizard-set wizard 'boot
+                            (append (list (cons 'bootloader
+                                                (if (zero? choice) 'grub-bios 'grub-efi))
+                                          (cons 'timeout (or (string->number wait) 5)))
+                                    (cons 'extra-kernel-arguments arguments)
+                                    (if (zero? serial)
+                                        '()
+                                        (list (cons 'terminal-outputs '(console serial))
+                                              (cons 'terminal-inputs '(serial))))))
+                'bootloader (if (zero? choice) 'grub-bios 'grub-efi)))))))))))
 
 (define (page-software win wizard)
   (let ((names (ask wizard win 3 (tr wizard 'packages) "")))
@@ -602,6 +637,9 @@ see why: hiding a disk they expect is worse than showing it with a warning."
     ;; process instead of reaching us as a key, and the installer has to shut
     ;; the terminal down cleanly itself.
     (raw!)
+    ;; Without keypad mode the arrows arrive as the raw ESC [ A sequences,
+    ;; and the leading ESC looks exactly like the "go back" key.
+    (keypad! win #t)
     (let loop ((wizard (make-wizard)))
       (cond
        ((wizard-complete? wizard)
