@@ -358,6 +358,10 @@ fields once an `action' row is activated."
              (loop fields (- k 49)))
             ((= k 27) (throw 'gradus-back #t))
             ((= k 3) (quit!))
+            ;; c: accept the page without walking to its Continue row
+            ((and (= k 99)
+                  (any (lambda (f) (eq? (field-kind f) 'action)) fields))
+             fields)
             ((or (= k 10) (= k 13))
              (let ((f (list-ref fields selected)))
                (if (eq? (field-kind f) 'action)
@@ -616,6 +620,10 @@ fields once an `action' row is activated."
              (loop selected (min (length %extra-packages) (+ cursor 1))))
             ((= k 27) (throw 'gradus-back #t))
             ((= k 3) (quit!))
+            ((= k 99)                      ; c: accept
+             (wizard-next
+              (wizard-set wizard 'software
+                          (list (cons 'extra-packages selected)))))
             ((or (= k 10) (= k 13) (= k 32))
              (if (= cursor (length %extra-packages))
                  (wizard-next
