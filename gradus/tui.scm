@@ -233,12 +233,15 @@ see why: hiding a disk they expect is worse than showing it with a warning."
         (cond ((eof-object? entry)
                (closedir dir)
                (reverse found))
-              ((or (string-prefix? "loop" entry)
+              ((or (member entry '("." ".."))
+                   (string-prefix? "loop" entry)
                    (string-prefix? "ram" entry)
                    (string-prefix? "zram" entry)
                    (string-prefix? "sr" entry)
                    (string-prefix? "dm-" entry)
                    (string-prefix? "md" entry))
+               (loop found))
+              ((not (file-exists? (format #f "/sys/block/~a/size" entry)))
                (loop found))
               (else (loop (cons entry found))))))))
 
@@ -313,7 +316,7 @@ see why: hiding a disk they expect is worse than showing it with a warning."
                       (format #f ": ~a" (show-value (field-value f))))))
         (put win row 2 (format #f "~a ~a~a" mark (field-label f) val)))
       (loop (cdr fs) (+ row 1) (+ i 1))))
-  (put win (+ 4 (length fields) 2) 2 "Up/Down move   Enter choose   Esc back   Ctrl-C quit")
+  (put win (+ 4 (length fields) 2) 2 "j/k or arrows move   Enter choose   Esc back   Ctrl-C quit")
   (refresh win))
 
 (define (edit-field win field)
@@ -345,9 +348,14 @@ fields once an `action' row is activated."
   (let loop ((fields fields) (selected 0))
     (draw-form win title fields selected)
     (let ((k (key-code (getch win))))
-      (cond ((= k KEY_UP) (loop fields (max 0 (- selected 1))))
-            ((= k KEY_DOWN)
+      (cond ((or (= k KEY_UP) (= k 107))       ; k
+             (loop fields (max 0 (- selected 1))))
+            ((or (= k KEY_DOWN) (= k 106))     ; j
              (loop fields (min (- (length fields) 1) (+ selected 1))))
+            ;; A digit jumps straight to that row: one keystroke is easier to
+            ;; get through a serial console than a run of arrows.
+            ((and (>= k 49) (<= k 57) (<= (- k 49) (- (length fields) 1)))
+             (loop fields (- k 49)))
             ((= k 27) (throw 'gradus-back #t))
             ((= k 3) (quit!))
             ((or (= k 10) (= k 13))
