@@ -599,7 +599,7 @@ fields once an `action' row is activated."
 
 (define (page-source win wizard)
   (let loop ((services (list (list (cons 'url "https://ci.guix.gnu.org")
-                                  (cons 'kind 'official)))))
+                                   (cons 'kind 'official)))))
     (frame win wizard)
     (put win 2 2 "Substitute servers, tried in this order:")
     (let draw ((items services) (row 4) (n 1))
@@ -615,22 +615,26 @@ fields once an `action' row is activated."
         (frame win wizard)
         (put win 3 2 "Server URL (a mirror, or a guix publish instance):")
         (let ((url (read-line* win 5 2 "> " "https://" #t)))
-          (loop (append services
-                        (list (list (cons 'url url) (cons 'kind 'mirror)))))))
+          ;; A server the operator adds goes first: they added it for a reason,
+          ;; and the seeded official server already has everything anyway.
+          (loop (cons (list (cons 'url url) (cons 'kind 'mirror))
+                      services))))
        ((= action 1)
         (if (null? services)
             (loop services)
             (let* ((labels (map (lambda (s) (assq-ref s 'url)) services))
                    (i (choose win row "Remove which server?" labels 0)))
-              (loop (append (take services i) (drop services (+ i 1)))))))
+              (loop (append (take services i)
+                            (drop services (+ i 1)))))))
        (else
         (frame win wizard)
         (put win 3 2 "HTTP proxy for the installation (empty for none):")
         (let ((proxy (read-line* win 5 2 "> " "" #t)))
           (wizard-next
-           (wizard-set (wizard-set wizard 'source
-                                   (list (cons 'substitute-services services)))
-                       'proxy (if (string-null? proxy) #f proxy)))))))))
+           (wizard-set
+            (wizard-set wizard 'source
+                        (list (cons 'substitute-services services)))
+            'proxy (if (string-null? proxy) #f proxy)))))))))
 
 (define (page-boot win wizard)
   (let* ((default-index (if (eq? (firmware-bootloader) 'grub-efi) 1 0))

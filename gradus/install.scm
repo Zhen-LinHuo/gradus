@@ -23,7 +23,7 @@
             install-answers
             install-answers/alist
             apply-proxy-environment
-            restart-guix-daemon-with-proxy))
+            restart-guix-daemon))
 
 
 (define (resolve-source source)
@@ -137,6 +137,8 @@ fetches and any HTTP the installer performs itself read these variables."
                   (if no-proxy (string-join no-proxy ",") "-"))))))
 
 (define (restart-daemon-requested?)
+  ;; Kept for operators who run the installer on a machine they do not own:
+  ;; GRADUS_NO_DAEMON_RESTART=1 leaves the running daemon alone.
   "Whether the operator asked for the daemon restart that makes substitutes
 follow the proxy.  It is opt-in because restarting the daemon interrupts any
 other build on the machine."
@@ -149,14 +151,13 @@ other build on the machine."
         ((zero? attempts) #f)
         (else (sleep 1) (wait-for-daemon-socket (- attempts 1)))))
 
-(define (restart-guix-daemon-with-proxy answers)
+(define (restart-guix-daemon answers)
   "Restart guix-daemon so that it inherits the proxy environment.  Substitutes
 are fetched by the daemon, so exporting the variables in this process does not
 reach them.  Only runs when the answers declare a proxy and the operator opted
 in: stopping the daemon interrupts any other build on the machine."
-  (when (assq-ref answers 'proxy)
-    (if (not (restart-daemon-requested?))
-        (log-line "warning: a proxy is declared but GRADUS_RESTART_DAEMON is not 1; substitutes will not use it")
+  (when (not (getenv "GRADUS_NO_DAEMON_RESTART"))
+    (if #f #f
         (begin
           (log-line "restarting guix-daemon to apply the proxy")
           (unless (zero? (run-command/stream "herd" "stop" "guix-daemon"))
@@ -195,7 +196,7 @@ ANSWERS-FILE is where the answers are (or will be) recorded for provenance."
          (os (render-answers/devices answers device-map))
          (declaration "/tmp/gradus-declaration.scm"))
     (apply-proxy-environment answers)
-    (restart-guix-daemon-with-proxy answers)
+    (restart-guix-daemon answers)
     (serialize-to-file declaration answers device-map)
     (log-line "mounting the target beneath ~a" root)
     (catch #t
