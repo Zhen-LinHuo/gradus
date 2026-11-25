@@ -323,27 +323,33 @@ see why: hiding a disk they expect is worse than showing it with a warning."
   (refresh win))
 
 (define (edit-field win field)
-  "Edit one field.  Menus are the default; text is the exception."
+  "Edit one field.  Menus are the default; text is the exception.
+
+Esc inside a field cancels that field only: the list closes and the form stays
+where it was.  Leaving the page takes a second Esc, on the form itself."
   (let ((kind (field-kind field)))
-    (cond
-     ((eq? kind 'menu)
-      (clear win)
-      (box win (acs-vline) (acs-hline))
-      (put win 0 2 (format #f " ~a " (field-label field)))
-      (let* ((options (map show-value (field-options field)))
-             (current (let loop ((o options) (i 0))
-                        (cond ((null? o) 0)
-                              ((equal? (car o) (show-value (field-value field))) i)
-                              (else (loop (cdr o) (+ i 1)))))))
-        (list-ref (field-options field)
-                  (choose win 3 (field-label field) options current))))
-     ((eq? kind 'text)
-      (clear win)
-      (box win (acs-vline) (acs-hline))
-      (put win 0 2 (format #f " ~a " (field-label field)))
-      (put win 3 2 "Type a value; Enter accepts.")
-      (read-line* win 5 2 "> " (show-value (field-value field)) #t))
-     (else (field-value field)))))
+    (catch 'gradus-back
+      (lambda ()
+        (cond
+         ((eq? kind 'menu)
+          (clear win)
+          (box win (acs-vline) (acs-hline))
+          (put win 0 2 (format #f " ~a " (field-label field)))
+          (let* ((options (map show-value (field-options field)))
+                 (current (let loop ((o options) (i 0))
+                            (cond ((null? o) 0)
+                                  ((equal? (car o) (show-value (field-value field))) i)
+                                  (else (loop (cdr o) (+ i 1)))))))
+            (list-ref (field-options field)
+                      (choose win 3 (field-label field) options current))))
+         ((eq? kind 'text)
+          (clear win)
+          (box win (acs-vline) (acs-hline))
+          (put win 0 2 (format #f " ~a " (field-label field)))
+          (put win 3 2 "Type a value; Enter accepts.")
+          (read-line* win 5 2 "> " (show-value (field-value field)) #t))
+         (else (field-value field))))
+      (lambda _ (field-value field)))))
 
 (define (form win title fields)
   "A page made of rows: move with the arrows, Enter picks a value.  Returns the
