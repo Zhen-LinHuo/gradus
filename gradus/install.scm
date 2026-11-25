@@ -5,6 +5,7 @@
 
 (define-module (gradus install)
   #:use-module (ice-9 popen)
+  #:use-module (ice-9 rdelim)
   #:use-module (gradus utils)
   #:use-module (gradus storage)
   #:use-module (gradus render)
@@ -17,6 +18,7 @@
   #:use-module (ice-9 format)
   #:use-module (guix build utils)
   #:export (mount-plan
+            resolve-source
             install-config
             install-answers
             install-answers/alist
