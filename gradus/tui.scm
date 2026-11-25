@@ -90,40 +90,108 @@
   (box win (acs-vline) (acs-hline))
   (put win 0 2 (format #f " ~a " (tr wizard 'title)))
   (let ((rows (getmaxy win)))
+    (put win (- rows 2) 2 "Esc: back    Ctrl-C: quit")
     (put win (- rows 1) 2
          (format #f " ~a: ~a " (tr wizard 'step) (wizard-step wizard))))
   (refresh win))
 
 ;; ----------------------------------------------------------------- input
 
+(define %back 'gradus-back)
+
+(define (quit!)
+  "Abandon the installer; the main loop restores the terminal."
+  (throw 'gradus-quit #t))
+
+(define (key-code k)
+  "guile-ncurses returns a character for ordinary keys and an integer for the
+special ones; compare everything as an integer."
+  (if (char? k) (char->integer k) k))
+
+(define (mask chars)
+  "The echo for a secret: one star per character."
+  (make-list (length chars) #\*))
+
+(define (insert-at chars pos ch)
+  (append (take chars pos) (list ch) (drop chars pos)))
+
+(define (delete-before chars pos)
+  (if (zero? pos) chars (append (take chars (- pos 1)) (drop chars pos))))
+
+(define (delete-at chars pos)
+  (if (>= pos (length chars)) chars
+      (append (take chars pos) (drop chars (+ pos 1)))))
+
+(define (draw-line win y x prompt chars pos show?)
+  "Paint PROMPT and the text, then put the cursor where the editing is."
+  (let* ((shown (if show? chars (mask chars)))
+         (len (+ x (string-length prompt) (length chars))))
+    (put win y x (string-append prompt (list->string shown)))
+    (move win y len)
+    (clrtoeol win)
+    ;; Place the cursor before refreshing, or the operator never sees it move.
+    (move win y (+ x (string-length prompt) pos))
+    (refresh win)))
+
+(define (read-line* win y x prompt initial show?)
+  "Edit a line: arrows and Home/End move the cursor, Backspace and Delete edit,
+Enter accepts, Esc goes back a page, Ctrl-C quits, and `q' on an empty line
+also quits.  The default is pre-filled so it can be edited rather than retyped."
+  (let loop ((chars (string->list (or initial "")))
+             (pos (length (string->list (or initial "")))))
+    (draw-line win y x prompt chars pos show?)
+    (let ((k (key-code (getch win))))
+      (cond ((or (= k 10) (= k 13)) (list->string chars))
+            ((= k 27) (throw 'gradus-back #t))
+            ((= k 3) (quit!))
+            ((and (= k 113) (null? chars)) (quit!))
+            ((or (= k KEY_BACKSPACE) (= k 127) (= k 8))
+             (loop (delete-before chars pos) (max 0 (- pos 1))))
+            ((= k KEY_DC) (loop (delete-at chars pos) pos))
+            ((= k KEY_LEFT) (loop chars (max 0 (- pos 1))))
+            ((= k KEY_RIGHT) (loop chars (min (length chars) (+ pos 1))))
+            ((= k KEY_HOME) (loop chars 0))
+            ((= k KEY_END) (loop chars (length chars)))
+            ((and (integer? k) (>= k 32) (< k 127))
+             (loop (insert-at chars pos (integer->char k)) (+ pos 1)))
+            (else (loop chars pos))))))
+
 (define (ask wizard win y label default)
-  "Draw LABEL with DEFAULT, read a line, and leave the cursor on the next row."
-  (put win y 2 (format #f "~a (~a): " label default))
-  (put win (+ y 1) 2 "> ")
-  (refresh win)
-  (let ((answer (getnstr win 200)))
-    (if (or (not answer) (string-null? answer)) default answer)))
+  "Ask for one line, pre-filled with DEFAULT."
+  (put win y 2 (format #f "~a (~a)" label default))
+  (read-line* win (+ y 1) 2 "> " default #t))
+
+(define (choose win y label options default-index)
+  "Pick one of OPTIONS with the arrow keys.  Returns the index."
+  (let loop ((selected default-index))
+    (put win y 2 label)
+    (let draw ((items options) (row (+ y 1)) (i 0))
+      (unless (null? items)
+        (put win row 2 (if (= i selected) "> " "  "))
+        (put win row 4 (car items))
+        (draw (cdr items) (+ row 1) (+ i 1))))
+    (put win (+ y 2 (length options)) 2 "(up/down, Enter; Esc back; q quit)")
+    (refresh win)
+    (let ((k (key-code (getch win))))
+      (cond ((or (= k 10) (= k 13)) selected)
+            ((= k 27) (throw 'gradus-back #t))
+            ((= k 3) (quit!))
+            ((= k 113) (quit!))
+            ((or (= k KEY_UP) (= k 107))
+             (loop (max 0 (- selected 1))))
+            ((or (= k KEY_DOWN) (= k 106))
+             (loop (min (- (length options) 1) (+ selected 1))))
+            ((and (>= k 49) (<= k 57) (<= (- k 49) (- (length options) 1)))
+             (loop (- k 49)))
+            (else (loop selected))))))
 
 (define (ask-number wizard win y label options default-index)
-  "Draw LABEL and numbered OPTIONS, then read a number.  Returns the index."
-  (let loop ()
-    (put win y 2 label)
-    (let index-loop ((items options) (row (+ y 1)) (n 1))
-      (unless (null? items)
-        (put win row 4 (format #f "~a ~a" n (car items)))
-        (index-loop (cdr items) (+ row 1) (+ n 1))))
-    (put win (+ y 1 (length options)) 2 (tr wizard 'choose))
-    (put win (+ y 2 (length options)) 2 "> ")
-    (refresh win)
-    (let* ((answer (getnstr win 8))
-           (n (and answer (string->number answer))))
-      (cond ((and (integer? n) (>= n 1) (<= n (length options))) (- n 1))
-            ((string-null? (or answer "")) default-index)
-            (else (loop))))))
+  "Pick one of OPTIONS; kept for the pages written before the menu widget."
+  (choose win y label options default-index))
 
 (define (back? value)
-  "Whether VALUE is the operator asking to go back one page."
-  (and (string? value) (equal? (string-downcase value) "b")))
+  "Retained for callers that still test a returned value."
+  (eq? value %back))
 
 ;; ----------------------------------------------------------------- pages
 
@@ -138,10 +206,8 @@
   (put win 2 2 "This installer runs in English on a text console.")
   (put win 4 2 "A Chinese interface is available in the graphical and web")
   (put win 5 2 "installers, which are not yet part of this release.")
-  (put win 7 2 "Press Enter to continue.")
-  (put win 9 2 "> ")
-  (refresh win)
-  (getnstr win 8)
+  (put win 7 2 "Press Enter to continue, q to quit.")
+  (read-line* win 9 2 "> " "" #t)
   (wizard-next (wizard-set-language wizard 1)))
 
 (define (%disk-name entry)
@@ -204,116 +270,178 @@ see why: hiding a disk they expect is worse than showing it with a warning."
                  (max 1024 (quotient (or (string->number (cadr fields)) 1048576) 1024))))
               (else (loop (read-line port))))))))
 
-(define (page-storage win wizard)
-  (let* ((disks (%disks))
-         (_ (when (null? disks)
-              (error "no disk was found on this machine")))
-         (info (map (lambda (name)
-                      (cons name (%disk-mounts (%disk-name name))))
-                    disks))
-         (labels (map (lambda (entry)
-                        (let ((name (car entry))
-                              (mounts (cdr entry)))
-                          (format #f "~a  (~,1f GB)~a"
-                                  (%disk-name name) (%disk-size name)
-                                  (if (null? mounts) ""
-                                      (format #f "   [in use: ~a]"
-                                              (string-join mounts ", "))))))
-                      info))
-         (choice (ask-number wizard win 3 (tr wizard 'disks) labels 0))
-         (chosen (list-ref info choice))
-         (disk (%disk-name (car chosen)))
-         (mounts (cdr chosen)))
-    (when (member "/" mounts)
-      (error "that disk holds the running system; choose another one"))
-    (when (pair? mounts)
-      (put win (+ 5 (length labels)) 2
-           (format #f "~a is in use (~a); it will be unmounted."
-                   disk (string-join mounts ", ")))
-      (put win (+ 7 (length labels)) 2 "Continue? (y/n)")
-      (put win (+ 8 (length labels)) 2 "> ")
-      (refresh win)
-      (unless (member (string-downcase (or (getnstr win 8) "")) '("y" "yes"))
-        (error "the operator declined to unmount the disk"))
-      (for-each (lambda (mount)
-                  (run-command/stream "umount" "-R" mount))
-                mounts))
-    (let* ((mode-row (+ 10 (length labels)))
-           (mode (ask-number wizard win mode-row (tr wizard 'mode)
-                              (list (tr wizard 'simple) (tr wizard 'lvm))
-                              0))
-           (mode-sym (if (zero? mode) 'simple 'lvm))
-           (esp-row (+ 14 (length labels)))
-           (esp (ask wizard win esp-row (tr wizard 'esp-size) "1024"))
-           (swap-row (+ 17 (length labels)))
-           (swap-default (number->string (default-swap-size (ram-mib))))
-           (swap (ask wizard win swap-row (tr wizard 'swap-size) swap-default))
-           (root-row (+ 20 (length labels)))
-           (root (ask wizard win root-row (tr wizard 'root-size) "0"))
-           (encrypt-row (+ 23 (length labels)))
-           (encrypt (ask wizard win encrypt-row (tr wizard 'encrypt) "n"))
-           (encryption
-            (and (member (string-downcase encrypt) '("y" "yes"))
-                 (let* ((first (ask-password wizard win (+ encrypt-row 2)
-                                            (tr wizard 'passphrase)))
-                        (again (ask-password wizard win (+ encrypt-row 4)
-                                            (tr wizard 'passphrase-again))))
-                   (unless (equal? first again)
-                     (error "the two passphrases do not match"))
-                   (list (cons 'mode 'luks)
-                         (cons 'name "cryptroot")
-                         (cons 'passphrase first)))))
-           (swap-mib (or (string-＞number swap) 0))
-           (_ (when (and encryption (＞ swap-mib 0))
-                (error
-                 "an encrypted install cannot use a separate swap partition (it would be plaintext); set the swap size to 0")))
-           (_ (when (and encryption (eq? mode-sym 'lvm))
-                (error
-                 "encryption is not implemented for LVM storage yet; choose simple storage or drop the encryption")))
-           (storage (storage-answers mode-sym disk
-                                     #:esp-size (or (string-＞number esp) 1024)
-                                     #:swap-size swap-mib
-                                     #:root-size (or (string-＞number root) 0)
-                                     #:encryption encryption)))
-      (wizard-next (wizard-set wizard 'storage storage)))))
-
 (define (ask-password wizard win y label)
-  "Read a password without echoing it."
-  (put win y 2 (format #f "~a: " label))
-  (put win (+ y 1) 2 "> ")
-  (refresh win)
-  (noecho!)
-  (let ((answer (getnstr win 200)))
-    (echo!)
-    answer))
+  "Ask for a secret: the characters are not echoed."
+  (put win y 2 label)
+  (read-line* win (+ y 1) 2 "> " "" #f))
 
 (define (salt)
-  "A salt for crypt, unique per run."
-  (format #f "$6$~a" (number->string (+ (current-time) (getpid)) 16)))
+  "A crypt(3) salt, so the password never leaves this process in clear."
+  (let ((chars "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"))
+    (string-append "$6$"
+                   (list->string
+                    (map (lambda (ignored)
+                           (string-ref chars (random (string-length chars))))
+                         (iota 8)))
+                   "$")))
+
+(define (%disk-mib entry)
+  "Size of ENTRY in MiB."
+  (let ((path (format #f "/sys/block/~a/size" entry)))
+    (if (file-exists? path)
+        (let ((sectors (call-with-input-file path
+                         (lambda (port)
+                           (or (string->number (string-trim-both (read-line port))) 0)))))
+          (quotient (* sectors 512) (* 1024 1024)))
+        0)))
+
+(define (%disk-note entry)
+  "Say when a disk is in use, rather than hiding it."
+  (let ((dev (%disk-name entry)))
+    (let ((used (filter (lambda (m) (string-prefix? dev (car m))) (%mounts))))
+      (if (pair? used)
+          (format #f "   [in use: ~a]" (cdr (car used)))
+          ""))))
+
+(define (pick win y label items)
+  "Choose one of ITEMS, or type a value of one's own."
+  (let* ((options (append items (list "(other - type it)")))
+         (n (length options))
+         (i (choose win y label options 0)))
+    (if (= i (- n 1))
+        (begin
+          (put win (+ y 3 n) 2 "Value:")
+          (read-line* win (+ y 4 n) 2 "> " "" #t))
+        (list-ref items i))))
+
+(define (layout-rows total efi? esp swap root)
+  "The plan as (name start size) rows, plus the MiB used."
+  (let* ((first (if efi? esp 1))
+         (rows (if efi? (list (list "ESP" 1 esp)) (list (list "biosboot" 1 1))))
+         (pos (+ 1 first))
+         (rows (if (> swap 0) (append rows (list (list "swap" pos swap))) rows))
+         (pos (+ pos (if (> swap 0) swap 0)))
+         (root-size (if (> root 0) root (max 0 (- total pos))))
+         (rows (append rows (list (list "root" pos root-size)))))
+    (list rows (+ pos root-size))))
+
+(define (show-plan win total efi? esp swap root)
+  "Draw the layout table and return the MiB that stay unallocated."
+  (let* ((plan (layout-rows total efi? esp swap root))
+         (rows (car plan))
+         (used (cadr plan)))
+    (put win 3 2 "Partition     Start (MiB)   Size (MiB)")
+    (let loop ((items rows) (row 4))
+      (unless (null? items)
+        (let ((entry (car items)))
+          (put win row 2 (format #f "~a~a~a~a"
+                                 (car entry)
+                                 (make-string (max 1 (- 14 (string-length (car entry)))) #\space)
+                                 (cadr entry)
+                                 (make-string (max 1 (- 13 (string-length (number->string (cadr entry))))) #\space)))
+          (put win row 28 (format #f "~a" (caddr entry))))
+        (loop (cdr items) (+ row 1))))
+    (let ((free (- total used)))
+      (put win (+ 5 (length rows)) 2
+           (format #f "Unallocated: ~a MiB of ~a MiB" free total))
+      free)))
+
+(define (page-storage win wizard)
+  (frame win wizard)
+  (let* ((disks (%disks))
+         (labels (map (lambda (d)
+                        (format #f "~a  (~a MiB)~a"
+                                (%disk-name d) (%disk-mib d) (%disk-note d)))
+                      disks)))
+    (if (null? disks)
+        (begin (put win 3 2 "No installable disks were found.")
+               (put win 5 2 "Attach a disk and press any key to rescan.")
+               (getch win)
+               (page-storage win wizard))
+        (let* ((index (choose win 3 (tr wizard 'disks) labels 0))
+               (entry (list-ref disks index))
+               (disk (%disk-name entry))
+               (total (%disk-mib entry))
+               (efi? (eq? (firmware-bootloader) 'grub-efi)))
+          (frame win wizard)
+          (put win 2 2 (format #f "~a: ~a MiB" disk total))
+          (let* ((mode (choose win 4 (tr wizard 'mode)
+                               (list (tr wizard 'simple) (tr wizard 'lvm)) 0))
+                 (mode-sym (if (zero? mode) 'simple 'lvm)))
+            (frame win wizard)
+            (put win 2 2 (format #f "~a: ~a MiB   (~a free before partitioning)"
+                                 disk total total))
+            (let* ((esp (ask wizard win 4 (tr wizard 'esp-size) "1024"))
+                   (default-swap (number->string (default-swap-size (ram-mib))))
+                   (swap (ask wizard win 7 (tr wizard 'swap-size) default-swap))
+                   (root (ask wizard win 10 (tr wizard 'root-size) "0")))
+              (frame win wizard)
+              (put win 2 2 (format #f "~a: ~a MiB" disk total))
+              (let* ((esp-mib (or (string->number esp) 1024))
+                     (swap-mib (or (string->number swap) 0))
+                     (root-mib (or (string->number root) 0))
+                     (free (show-plan win total efi? esp-mib swap-mib root-mib))
+                     (choice (choose win (+ 7 (if efi? 3 3)) "Use this layout?"
+                                     (list "yes" "change the sizes") 0)))
+                (if (= choice 1)
+                    (page-storage win wizard)
+                    (begin
+                      (frame win wizard)
+                      (put win 2 2 (format #f "~a: ~a MiB" disk total))
+                      (let* ((encrypt (choose win 4 (tr wizard 'encrypt)
+                                              (list "no" "yes (LUKS1)") 0)))
+                        (if (zero? encrypt)
+                            (wizard-next
+                             (wizard-set wizard 'storage
+                                         (storage-answers mode-sym disk
+                                                          #:esp-size esp-mib
+                                                          #:swap-size swap-mib
+                                                          #:root-size root-mib)))
+                            (begin
+                              (when (> swap-mib 0)
+                                (error "an encrypted install cannot keep a separate swap partition; set the swap size to 0"))
+                              (when (eq? mode-sym 'lvm)
+                                (error "encryption is not implemented for LVM storage yet"))
+                              (let ((first (ask-password wizard win 4 (tr wizard 'passphrase)))
+                                    (again (ask-password wizard win 6 (tr wizard 'passphrase-again))))
+                                (unless (equal? first again)
+                                  (error "the two passphrases do not match"))
+                                (wizard-next
+                                 (wizard-set wizard 'storage
+                                             (storage-answers mode-sym disk
+                                                              #:esp-size esp-mib
+                                                              #:swap-size swap-mib
+                                                              #:root-size root-mib
+                                                              #:encryption
+                                                              (list (cons 'mode 'luks)
+                                                                    (cons 'name "cryptroot")
+                                                                    (cons 'passphrase first))))))))))))))))))
+
+(define %keyboards
+  '("us" "gb" "de" "fr" "es" "it" "se" "dvorak"))
+
+(define %timezones
+  '("UTC" "Europe/Berlin" "Europe/London" "Asia/Shanghai" "Asia/Tokyo"
+    "America/New_York" "America/Los_Angeles"))
+
+(define %locales
+  '("en_US.utf8" "de_DE.utf8" "fr_FR.utf8" "zh_CN.utf8" "ja_JP.utf8"))
 
 (define (page-locale win wizard)
-  (let ((keyboard (ask wizard win 3 (tr wizard 'keyboard) "us")))
-    (if (back? keyboard)
-        (wizard-back wizard)
-        (let ((timezone (ask wizard win 6 (tr wizard 'timezone) "UTC")))
-          (if (back? timezone)
-              (wizard-back wizard)
-              (let ((locale (ask wizard win 9 (tr wizard 'locale) "en_US.utf8")))
-                (if (back? locale)
-                    (wizard-back wizard)
-                    (let ((ntp (ask wizard win 12 (tr wizard 'ntp) "y")))
-                      (if (back? ntp)
-                          (wizard-back wizard)
-                          (let ((ntp-on (not (member (string-downcase ntp)
-                                                     '("n" "no")))))
-                            (wizard-next
-                             (wizard-set
-                              (wizard-set
-                               (wizard-set
-                                (wizard-set wizard 'keyboard keyboard)
-                                'timezone timezone)
-                               'locale locale)
-                              'ntp ntp-on))))))))))))
+  (frame win wizard)
+  (let ((keyboard (pick win 3 (tr wizard 'keyboard) %keyboards)))
+    (frame win wizard)
+    (let ((timezone (pick win 3 (tr wizard 'timezone) %timezones)))
+      (frame win wizard)
+      (let ((locale (pick win 3 (tr wizard 'locale) %locales)))
+        (frame win wizard)
+        (let ((ntp (choose win 3 (tr wizard 'ntp) (list "yes" "no") 0)))
+          (wizard-next
+           (wizard-set
+            (wizard-set (wizard-set (wizard-set wizard 'keyboard keyboard)
+                                    'timezone timezone)
+                        'locale locale)
+            'ntp (zero? ntp))))))))
 
 (define (page-source win wizard)
   (let* ((url (ask wizard win 3 (tr wizard 'substitute)
@@ -470,7 +598,10 @@ see why: hiding a disk they expect is worse than showing it with a warning."
 (define (run-tui)
   "Run the interactive installer in this terminal."
   (let ((win (initscr)))
-    (cbreak!)
+    ;; raw mode, not cbreak: cbreak leaves ISIG on, so ^C would signal the
+    ;; process instead of reaching us as a key, and the installer has to shut
+    ;; the terminal down cleanly itself.
+    (raw!)
     (let loop ((wizard (make-wizard)))
       (cond
        ((wizard-complete? wizard)
@@ -482,8 +613,15 @@ see why: hiding a disk they expect is worse than showing it with a warning."
             (lambda ()
               (loop (page win wizard)))
             (lambda (key . args)
-              (endwin)
-              (format (current-error-port) "page error at ~a: ~a ~s~%"
-                      (wizard-step wizard) key args)
-              1))))))
+              (cond
+               ((eq? key 'gradus-back) (loop (wizard-back wizard)))
+               ((eq? key 'gradus-quit)
+                (endwin)
+                (format (current-error-port) "Aborted; nothing was changed.~%")
+                130)
+               (else
+                (endwin)
+                (format (current-error-port) "page error at ~a: ~a ~s~%"
+                        (wizard-step wizard) key args)
+                1))))))))
     0))
