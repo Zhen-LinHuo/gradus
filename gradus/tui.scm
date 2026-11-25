@@ -598,8 +598,10 @@ fields once an `action' row is activated."
       'ntp (equal? "yes" (field-value (list-ref r 3)))))))
 
 (define (page-source win wizard)
-  (let loop ((services (list (list (cons 'url "https://ci.guix.gnu.org")
-                                   (cons 'kind 'official)))))
+  (let loop ((services (list (list (cons 'url "https://mirror.sjtu.edu.cn/guix")
+                                   (cons 'kind 'mirror))
+                              (list (cons 'url "https://ci.guix.gnu.org")
+                                    (cons 'kind 'official)))))
     (frame win wizard)
     (put win 2 2 "Substitute servers, tried in this order:")
     (let draw ((items services) (row 4) (n 1))
