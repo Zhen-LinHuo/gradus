@@ -61,8 +61,16 @@
         (environment (proxy-environment answers)))
     (format port "  (services~%")
     (format port "   (append~%")
-    (format port "    (list (service openssh-service-type)~%")
-    (format port "          (service dhcpcd-service-type)~%")
+    (let* ((network (or (assq-ref answers 'network) '()))
+           (static? (eq? (assq-ref network 'management) 'static)))
+      (format port "    (list (service openssh-service-type)~%")
+      (if static?
+          (format port "          (service static-networking-service-type~%           (list (static-networking~%                   (addresses (list (network-address~%                                 (device ~s)~%                                 (value ~s))))~%                   (routes (list (network-route~%                                  (destination \"default\")~%                                  (gateway ~s))))~%                   (name-servers '~s))))~%"
+                  (assq-ref network 'interface)
+                  (assq-ref network 'address)
+                  (assq-ref network 'gateway)
+                  (or (assq-ref network 'name-servers) '()))
+          (format port "          (service dhcpcd-service-type)~%")))
     (when (assq-ref answers 'ntp)
       (format port "          (service ntp-service-type)~%"))
     (format port "    )~%")
