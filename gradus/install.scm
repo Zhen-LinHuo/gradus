@@ -4,6 +4,7 @@
 ;;; This file is part of Gradus.
 
 (define-module (gradus install)
+  #:use-module (ice-9 popen)
   #:use-module (gradus utils)
   #:use-module (gradus storage)
   #:use-module (gradus render)
@@ -22,6 +23,21 @@
             apply-proxy-environment
             restart-guix-daemon-with-proxy))
 
+
+(define (resolve-source source)
+  "Turn LABEL=... into a device path: mount would resolve it through
+/dev/disk/by-label, which only exists once udev has noticed the new
+filesystem -- and an installer mounts seconds after mkfs.  findfs scans the
+devices directly and needs no udev."
+  (if (and (string? source) (string-prefix? "LABEL=" source))
+      (let* ((port (open-input-pipe (string-append "findfs " source)))
+             (line (read-line port))
+             (status (close-pipe port)))
+        (if (and (string? line) (string-prefix? "/dev/" line))
+            line
+            source))
+      source))
+
 (define (mount-plan plan root)
   "Mount every file system in PLAN beneath ROOT, parents first.  Return #t on
 success; raise on the first failure."
@@ -31,7 +47,7 @@ success; raise on the first failure."
             (target (if (string=? point "/")
                         root
                         (string-append root point)))
-            (source (assoc-ref fs 'source))
+            (source (resolve-source (assoc-ref fs 'source)))
             (type (assoc-ref fs 'type))
             (options (assoc-ref fs 'options)))
        (mkdir-p target)
