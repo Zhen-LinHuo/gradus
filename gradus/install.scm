@@ -32,7 +32,7 @@
 filesystem -- and an installer mounts seconds after mkfs.  findfs scans the
 devices directly and needs no udev."
   (if (and (string? source) (string-prefix? "LABEL=" source))
-      (let* ((port (open-input-pipe (string-append "findfs " source)))
+      (let* ((port         (open-input-pipe (string-append (system-tool "findfs") " " source)))
              (line (read-line port))
              (status (close-pipe port)))
         (if (and (string? line) (string-prefix? "/dev/" line))
