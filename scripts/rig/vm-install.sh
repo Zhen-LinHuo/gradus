@@ -32,7 +32,8 @@ flock -n 9 || { echo "another matrix run is active; skipping"; exit 0; }
 sh "$ROOT/scripts/rig/gen-answers.sh" "$FS" "$FW" > "$B/answers.scm"
 mkdir -p "$B/share"
 cp "$B/answers.scm" "$B/share/answers.scm"
-make -C "$ROOT" iso >/dev/null
+# Bake the cell's answers into the medium: no 9p dependency at install time.
+GRADUS_ANSWERS="$B/answers.scm" make -C "$ROOT" iso >/dev/null
 ISO=$(cat "$ROOT/.build/iso-path")
 test -f "$ISO"
 

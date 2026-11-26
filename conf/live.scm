@@ -2,18 +2,19 @@
 ;;
 ;; Build (from the repository root):
 ;;
-;;   make iso
+;;   make iso                          # interactive medium
+;;   GRADUS_ANSWERS=path make iso      # medium with the answers baked in
 ;;
-;; The medium auto-logs in as root on tty1–tty6 (mingetty); the serial console
-;; (agetty, tty #f in %base-services) accepts a root login without a password.
-;; The installer's source tree is embedded; no network is required to start it.
+;; Every console auto-logs in as root (mingetty on tty1–tty6, agetty on the
+;; serial console) and runs /root/.bash_profile, which picks an entry point:
 ;;
-;; Boot behaviour, decided by the root shell profile:
-;;
-;; - if a 9p share tagged `repo' is mounted and contains `answers.scm',
-;;   the installer runs unattended from that answer file (this is what the
-;;   `make vm-install' matrix uses);
+;; - if a 9p share tagged `repo' carries answers.scm, or the medium was
+;;   built with GRADUS_ANSWERS (both are read, 9p first), and the login
+;;   happened on the serial console, the installer runs unattended;
 ;; - otherwise the wizard starts on the console the operator is looking at.
+;;
+;; Diagnostics go to /dev/console (the kernel console, ttyS0 here) so they
+;; are captured by the serial log whatever console the login happened on.
 
 (use-modules (gnu)
              (gnu services)
@@ -23,20 +24,41 @@
              (gnu packages)
              (gnu packages linux))
 
+;; Answers baked into the medium at build time; absent for the interactive one.
+(define %baked-answers
+  (let ((path (getenv "GRADUS_ANSWERS")))
+    (if path
+        (list (extra-special-file "/etc/answers.scm" (local-file path)))
+        '())))
+
 (define %live-profile
   (plain-file "live-profile"
               "#!/bin/sh
 export TERM=linux
 export GUILE_LOAD_PATH=/run/current-system/profile/share/guile/site/3.0${GUILE_LOAD_PATH:+:$GUILE_LOAD_PATH}
-mkdir -p /tmp/gradus-src && tar xzf /etc/gradus-src.tar.gz -C /tmp/gradus-src
-cd /tmp/gradus-src
-mkdir -p /repo && mount -t 9p -o trans=virtio,ro repo /repo 2>/dev/null
-if mountpoint -q /repo 2>/dev/null && [ -f /repo/answers.scm ]; then
-  guile -L . -s gradus/script.scm --answers /repo/answers.scm --root /mnt/target
+CONS=$(tty 2>/dev/null || echo unknown)
+echo gradus-login-on-$CONS >/dev/console
+D=/tmp/gradus-src-$(echo $CONS | tr -c a-zA-Z0-9 _)
+mkdir -p $D && tar xzf /etc/gradus-src.tar.gz -C $D
+cd $D
+A=
+mkdir -p /repo
+if mount -t 9p -o trans=virtio,ro repo /repo >/tmp/gradus-9p.out 2>&1 && test -f /repo/answers.scm; then
+  A=/repo/answers.scm
+  echo gradus-answers-from-9p >/dev/console
+elif test -f /etc/answers.scm; then
+  A=/etc/answers.scm
+  echo gradus-answers-baked >/dev/console
 else
+  echo gradus-no-answers-found >/dev/console
+fi
+if test -n \"$A\" && test \"$CONS\" = /dev/ttyS0; then
+  guile -L . -s gradus/script.scm --answers $A --root /mnt/target
+else
+  test -n \"$A\" && echo gradus-answers-ignored-not-serial >/dev/console
   guile -L . -s gradus/script.scm --tui
 fi
-echo \"the installer exited with $?\"
+echo gradus-installer-exit-$? >/dev/console
 sleep 15
 "))
 
@@ -67,9 +89,13 @@ sleep 15
                               (local-file "../.build/gradus-src.tar.gz"))
           (extra-special-file "/root/.bash_profile" %live-profile)
           (service dhcpcd-service-type))
+    %baked-answers
     (modify-services %base-services
             (mingetty-service-type config =>
                                (mingetty-configuration
                                 (inherit config)
-                                (auto-login "root"))))
-)))
+                                (auto-login "root")))
+            (agetty-service-type config =>
+                               (agetty-configuration
+                                (inherit config)
+                                (auto-login "root")))))))
