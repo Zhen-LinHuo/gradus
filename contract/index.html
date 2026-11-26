@@ -1,0 +1,1355 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A generic installer for GNU Guix System">
+      
+      
+      
+      
+        <link rel="prev" href="../architecture/">
+      
+      
+        <link rel="next" href="../pages/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Contract - Gradus</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#the-installer-contract" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Gradus" class="md-header__button md-logo" aria-label="Gradus" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Gradus
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Contract
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Zhen-LinHuo/gradus" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../architecture/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Architecture
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contract
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../pages/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Pages
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../install-flow/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Install flow
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../implementation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Implementation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../testing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Testing
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../upstream/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Upstream
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Gradus" class="md-nav__button md-logo" aria-label="Gradus" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Gradus
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Zhen-LinHuo/gradus" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contract
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contract
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-invocation-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Invocation modes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Invocation modes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-option-reference-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 Option reference (v1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-configuration-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Configuration mode
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-answer-file-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Answer-file format
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Answer-file format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-sources-and-trust" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Sources and trust
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-artefacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Artefacts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-guarantees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Guarantees
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-exit-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Exit status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-non-guarantees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Non-guarantees
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-compatibility-and-versioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Compatibility and versioning
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../install-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../implementation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Implementation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../upstream/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Upstream
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-invocation-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Invocation modes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Invocation modes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-option-reference-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 Option reference (v1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-configuration-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Configuration mode
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-answer-file-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Answer-file format
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Answer-file format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-sources-and-trust" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Sources and trust
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-artefacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Artefacts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-guarantees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Guarantees
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-exit-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Exit status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-non-guarantees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Non-guarantees
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-compatibility-and-versioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Compatibility and versioning
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="the-installer-contract">The installer contract</h1>
+<p>This document is the authoritative definition of what the installer accepts,
+what it produces, and what it promises. Anything that consumes the installer —
+a fleet repository, a CI job, a human with a USB stick — may rely on this file
+and on nothing else.</p>
+<p>Contract version: <strong>1</strong>. Product version: <strong>0.3.0</strong>.</p>
+<h2 id="1-scope">1. Scope</h2>
+<p>The installer turns <em>installation decisions</em> into an installed Guix System and
+into the <code>operating-system</code> declaration that describes it.</p>
+<p>It is not a configuration manager. After installation, the machine is managed
+with <code>guix system reconfigure</code> and the configuration file the installer left
+behind.</p>
+<h2 id="2-invocation-modes">2. Invocation modes</h2>
+<p><strong>Implementation status (v0.2).</strong> Of this section, the following exist today:
+<code>--config FILE</code> and <code>--answers FILE</code>, <code>--root DIR</code> (the mount point under which
+the target's file systems are mounted; default <code>/mnt</code>), <code>--dry-run</code>, <code>--log</code>,
+<code>--version</code>.  In <code>--config</code> mode the target's file systems must already exist,
+carrying the labels or UUIDs that <code>FILE</code> names — the installer mounts them and
+does not partition.  In <code>--answers</code> mode the target disk is prepared from the
+answer file.  <code>--target</code>, <code>--erase</code>, <code>--proxy</code>, <code>--no-proxy</code> and <code>--yes</code> are
+specified but not implemented yet.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Mode</th>
+<th style="text-align: left;">Command shape</th>
+<th style="text-align: left;">What is required</th>
+<th style="text-align: left;">What is written</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Interactive</td>
+<td style="text-align: left;"><code>gradus</code></td>
+<td style="text-align: left;">Nothing</td>
+<td style="text-align: left;">Target disk, only after explicit confirmation</td>
+</tr>
+<tr>
+<td style="text-align: left;">From configuration</td>
+<td style="text-align: left;"><code>gradus --config FILE --target DEV</code></td>
+<td style="text-align: left;"><code>FILE</code>'s file systems must resolve on the target</td>
+<td style="text-align: left;">Target disk, bootloader</td>
+</tr>
+<tr>
+<td style="text-align: left;">Unattended</td>
+<td style="text-align: left;"><code>gradus --answers FILE --target DEV --erase</code></td>
+<td style="text-align: left;">Complete answer file</td>
+<td style="text-align: left;">Everything the answers describe</td>
+</tr>
+<tr>
+<td style="text-align: left;">Validation</td>
+<td style="text-align: left;">any of the above plus <code>--dry-run</code></td>
+<td style="text-align: left;">As above</td>
+<td style="text-align: left;">Nothing</td>
+</tr>
+</tbody>
+</table>
+<p><code>--dry-run</code> performs every check, renders the resulting <code>operating-system</code>,
+prints it to standard output, and exits without touching any device.</p>
+<h3 id="21-option-reference-v1">2.1 Option reference (v1)</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Option</th>
+<th style="text-align: left;">Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>--config FILE</code></td>
+<td style="text-align: left;">Install this <code>operating-system</code> declaration as written</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>--answers FILE</code></td>
+<td style="text-align: left;">Read installation decisions from <code>FILE</code>; render the configuration from them</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>--target DEV</code></td>
+<td style="text-align: left;">Device that receives the bootloader (and, with <code>--erase</code>, the system)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>--erase</code></td>
+<td style="text-align: left;">Permit writing to <code>DEV</code>. Without it, a device carrying a file system is refused</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>--proxy URL</code></td>
+<td style="text-align: left;">Use this HTTP/HTTPS proxy for the installation, overriding the answer file</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>--no-proxy LIST</code></td>
+<td style="text-align: left;">Comma-separated hosts that bypass the proxy, overriding the answer file</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>--dry-run</code></td>
+<td style="text-align: left;">Check and print; write nothing</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>--yes</code></td>
+<td style="text-align: left;">Answer confirmation prompts affirmatively (requires <code>--erase</code> for destructive modes)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>--log FILE</code></td>
+<td style="text-align: left;">Write the transcript to <code>FILE</code> in addition to the default location</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>--version</code></td>
+<td style="text-align: left;">Print product and contract version, exit 0</td>
+</tr>
+</tbody>
+</table>
+<p><code>--config</code> and <code>--answers</code> are mutually exclusive. <code>--target</code> is mandatory in
+both non-interactive modes.</p>
+<h2 id="3-configuration-mode">3. Configuration mode</h2>
+<p>In <code>--config</code> mode the installer does <strong>not</strong> modify the declaration. It:</p>
+<ol>
+<li>validates the declaration (<code>guix system build --dry-run</code> equivalent);</li>
+<li>checks that every <code>file-system</code> device in it resolves on the target — by
+   label or UUID, before any mount is attempted;</li>
+<li>checks that the bootloader target is plausible (UEFI system partition
+   present, or BIOS boot area available);</li>
+<li>mounts the declared file systems under the target root;</li>
+<li>runs <code>guix system init</code> with the declaration;</li>
+<li>installs the bootloader as the declaration describes.</li>
+</ol>
+<p>Device names in the declaration are therefore a caller concern. This mode
+deliberately performs no partitioning: a configuration cannot express partition
+sizes, so inferring a layout from it would be guesswork.</p>
+<h2 id="4-answer-file-format">4. Answer-file format</h2>
+<p>An answer file is an S-expression read with Scheme's <code>read</code>. It describes the
+<em>installation</em>, not the whole system: it carries facts and a small number of
+policies, and the renderer fills in everything else from the selected profile.</p>
+<div class="highlight"><pre><span></span><code><span class="c1">;; answers.scm — schema version 1</span>
+<span class="p">((</span><span class="nf">schema-version</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
+<span class="w"> </span><span class="p">(</span><span class="nf">profile</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"desktop"</span><span class="p">)</span>
+<span class="w"> </span><span class="p">(</span><span class="nf">locale</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"en_GB.utf8"</span><span class="p">)</span>
+<span class="w"> </span><span class="p">(</span><span class="nf">timezone</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"Europe/London"</span><span class="p">)</span>
+<span class="w"> </span><span class="p">(</span><span class="nf">keyboard</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"gb"</span><span class="p">)</span>
+<span class="w"> </span><span class="p">(</span><span class="nf">host-name</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"workstation"</span><span class="p">)</span>
+
+<span class="w"> </span><span class="p">(</span><span class="nf">proxy</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">http</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"http://proxy.example.net:3128"</span><span class="p">)</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">https</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"http://proxy.example.net:3128"</span><span class="p">)</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">no-proxy</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="p">(</span><span class="s">"localhost"</span><span class="w"> </span><span class="s">"cache.example.net"</span><span class="p">)))</span>
+
+<span class="w"> </span><span class="p">(</span><span class="nf">source</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">channels</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"channels.scm"</span><span class="p">)</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">substitute-services</span>
+<span class="w">   </span><span class="p">((</span><span class="nf">name</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"official"</span><span class="p">)</span>
+<span class="w">    </span><span class="p">(</span><span class="nf">url</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"https://ci.guix.gnu.org"</span><span class="p">)</span>
+<span class="w">    </span><span class="p">(</span><span class="nf">kind</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="nv">official</span><span class="p">))</span>
+<span class="w">   </span><span class="p">((</span><span class="nf">name</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"lan-cache"</span><span class="p">)</span>
+<span class="w">    </span><span class="p">(</span><span class="nf">url</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"http://cache.example.net"</span><span class="p">)</span>
+<span class="w">    </span><span class="p">(</span><span class="nf">kind</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="nv">builder</span><span class="p">)</span>
+<span class="w">    </span><span class="p">(</span><span class="nf">key</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"cache.example.net.pub"</span><span class="p">))))</span>
+
+<span class="w"> </span><span class="p">(</span><span class="nf">storage</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">mode</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="nv">simple</span><span class="p">)</span><span class="w">                 </span><span class="c1">; simple | lvm | existing</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">disk</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"/dev/nvme0n1"</span><span class="p">)</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">erase</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="no">#f</span><span class="p">)</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">esp-size</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="mi">1024</span><span class="p">)</span><span class="w">               </span><span class="c1">; MiB; the ESP (EFI) or BIOS Boot partition</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">swap-size</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w">                 </span><span class="c1">; MiB; 0 means no swap partition</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">root-size</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w">                 </span><span class="c1">; MiB; 0 means the rest of the disk</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">encryption</span><span class="w"> </span><span class="p">(</span><span class="nf">mode</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="nv">luks</span><span class="p">)</span><span class="w">       </span><span class="c1">; LUKS1 — GRUB must read the root at boot</span>
+<span class="w">              </span><span class="p">(</span><span class="nf">name</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"cryptroot"</span><span class="p">)</span>
+<span class="w">              </span><span class="p">(</span><span class="nf">passphrase</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"…"</span><span class="p">))</span><span class="w"> </span><span class="c1">; never written to the declaration</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">data-volumes</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="p">()))</span><span class="w">            </span><span class="c1">; never formatted unless erase? is #t per volume</span>
+
+<span class="w"> </span><span class="p">(</span><span class="nf">boot</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">bootloader</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="nv">grub-efi</span><span class="p">)</span><span class="w">         </span><span class="c1">; grub-efi | grub-bios | extlinux | u-boot | none</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">target</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"/dev/nvme0n1"</span><span class="p">)</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">kernel</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="nv">linux-libre</span><span class="p">)</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">extra-kernel-arguments</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="p">(</span><span class="s">"console=ttyS0,115200"</span><span class="p">))</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">timeout</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="mi">5</span><span class="p">)</span><span class="w">                   </span><span class="c1">; -1 waits indefinitely</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">stop-at-menu</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="no">#f</span><span class="p">)</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">default-entry</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">update-nvram</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="no">#t</span><span class="p">)</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">keep-generations</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="mi">5</span><span class="p">))</span>
+
+<span class="w"> </span><span class="p">(</span><span class="nf">network</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">management</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="nv">dhcp</span><span class="p">)</span><span class="w">             </span><span class="c1">; dhcp | static</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">interface</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"eno1"</span><span class="p">))</span>
+
+<span class="w"> </span><span class="p">(</span><span class="nf">users</span>
+<span class="w">  </span><span class="p">((</span><span class="nf">name</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">"alice"</span><span class="p">)</span>
+<span class="w">   </span><span class="p">(</span><span class="nf">groups</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="p">(</span><span class="s">"wheel"</span><span class="w"> </span><span class="s">"audio"</span><span class="w"> </span><span class="s">"video"</span><span class="p">))</span>
+<span class="w">   </span><span class="p">(</span><span class="nf">ssh-keys</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="p">(</span><span class="s">"ssh-ed25519 AAAA..."</span><span class="p">))))</span>
+
+<span class="w"> </span><span class="p">(</span><span class="nf">software</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">extra-packages</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="p">())</span>
+<span class="w">  </span><span class="p">(</span><span class="nf">manifest</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="no">#f</span><span class="p">)))</span>
+</code></pre></div>
+<p>Rules:</p>
+<ul>
+<li>Unknown keys are an error, not ignored. Silent acceptance of a typo is how an
+  unattended install ends up different from what the operator reviewed.</li>
+<li>Every key in the example above is optional except <code>schema-version</code>, <code>profile</code>,
+  <code>storage</code> and <code>users</code>; omitted keys take documented defaults.</li>
+<li><code>erase</code> defaults to <code>#f</code>. A data volume is never formatted implicitly; each
+  volume carries its own <code>erase?</code> flag.</li>
+<li><code>bootloader</code> may be <code>none</code>. In that case no bootloader is installed and the
+  existing one is left untouched; the renderer omits the field and the review
+  stage states plainly that the machine will not boot unaided.</li>
+<li>A substitute service's <code>kind</code> decides whether a key is required. <code>mirror</code>
+  serves official store paths signed by their original builders and needs no new
+  key; <code>builder</code> signs its own artefacts and must carry one.</li>
+<li>Proxy credentials are secrets. They are never printed in full, and they are
+  written to the target only when the operator asks for that.</li>
+<li>Command-line <code>--proxy</code> and <code>--no-proxy</code> override the corresponding answer-file
+  values; the answer file is not rewritten to match.</li>
+<li>The renderer is deterministic: the same answer file and the same profile at
+  the same version produce the same declaration.</li>
+<li>Encryption is refused where the installer cannot honour it, before anything
+  is written to a disk: with <code>lvm</code> storage, and together with a swap partition
+  (the swap would be plaintext outside the container). The passphrase is used
+  to format the container and is never written to the declaration; the
+  declaration carries the container's LUKS UUID, which is the only form GRUB
+  can unlock. A declaration without that UUID is not written.</li>
+</ul>
+<h3 id="41-sources-and-trust">4.1 Sources and trust</h3>
+<p>The installer never adds a source of its own. The source list in the answer file
+is used in the order written, both in the live environment and in the target's
+<code>guix-configuration</code>.</p>
+<p>Signature checking is never relaxed. A mirror accelerates; it does not vouch.
+The keys authorised for the live environment are the same keys written into the
+target, so a key that is only present during installation does not silently
+disappear at the first boot.</p>
+<h2 id="5-artefacts">5. Artefacts</h2>
+<p>On the target, after a successful installation:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Path</th>
+<th style="text-align: left;">Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>/etc/config.scm</code></td>
+<td style="text-align: left;">The exact <code>operating-system</code> declaration that was installed</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>/etc/gradus/answers.scm</code></td>
+<td style="text-align: left;">The answers used, or a statement that <code>--config</code> mode was used</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>/etc/gradus/provenance.scm</code></td>
+<td style="text-align: left;">Installer version, contract version, Guix revision, UTC timestamp</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>/var/log/gradus-install.log</code></td>
+<td style="text-align: left;">Full transcript</td>
+</tr>
+</tbody>
+</table>
+<p><code>/etc/config.scm</code> is byte-identical to the file that was reviewed: no
+reformatting, no regeneration after the fact. Provenance exists so that "what is
+on this machine" and "what was requested" can be compared without guesswork.</p>
+<h2 id="6-guarantees">6. Guarantees</h2>
+<ol>
+<li><strong>No implicit destruction.</strong> A device is written only when it is named by
+   <code>--target</code> <em>and</em> erasure is requested (<code>--erase</code> in unattended mode, an
+   explicit confirmation in interactive mode).</li>
+<li><strong>No hidden sources.</strong> Packages are fetched only from the channels and
+   substitute URLs declared in the answers or configuration. The installer does
+   not add sources of its own.</li>
+<li><strong>Dry run is inert.</strong> <code>--dry-run</code> creates no mount, no partition, no file.</li>
+<li><strong>Refusal over guessing.</strong> If a declared file system does not resolve, if the
+   bootloader target is ambiguous, or if the target is mounted or is the live
+   medium, the installer stops with a non-zero exit status. It does not pick a
+   default device.</li>
+<li><strong>Provenance.</strong> A successful installation always leaves the artefacts in §5.</li>
+<li><strong>Proxy where it is needed.</strong> A proxy configured for the installation is used
+   for every fetch the installation performs, and is configured for the target's
+   Guix daemon. A <code>no_proxy</code> entry always takes precedence, so a local cache is
+   not sent through the proxy that provides external access.</li>
+</ol>
+<h2 id="7-exit-status">7. Exit status</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Code</th>
+<th style="text-align: left;">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">0</td>
+<td style="text-align: left;">Success</td>
+</tr>
+<tr>
+<td style="text-align: left;">1</td>
+<td style="text-align: left;">Usage error</td>
+</tr>
+<tr>
+<td style="text-align: left;">2</td>
+<td style="text-align: left;">Validation error in the configuration or answer file</td>
+</tr>
+<tr>
+<td style="text-align: left;">3</td>
+<td style="text-align: left;">Target unsuitable (mounted, missing, too small, live medium, insufficient privileges)</td>
+</tr>
+<tr>
+<td style="text-align: left;">4</td>
+<td style="text-align: left;">Installation failed</td>
+</tr>
+<tr>
+<td style="text-align: left;">5</td>
+<td style="text-align: left;">Interrupted by the operator</td>
+</tr>
+</tbody>
+</table>
+<p>After exit 3 or 4, the installer reports exactly which step failed and what is
+currently on the target. It does not attempt an automatic repair.</p>
+<h2 id="8-non-guarantees">8. Non-guarantees</h2>
+<ul>
+<li>No resume of a partially written disk in v1. A failed installation is
+  re-attempted from the beginning; the operator is told what state the target is
+  in.</li>
+<li>No migration or upgrade of an installed system.</li>
+<li>No post-install configuration. That is <code>guix system reconfigure</code>'s job.</li>
+<li>No rollback of an activation performed on a running live system. The installer
+  installs; it does not mutate a running system.</li>
+</ul>
+<h2 id="9-compatibility-and-versioning">9. Compatibility and versioning</h2>
+<ul>
+<li><strong>Contract version</strong> changes only when an existing caller would break:
+  option removal, answer-file key removal, artefact path change, altered
+  guarantee. Product major version follows the contract major version.</li>
+<li><strong>Product version</strong> is SemVer. Adding a page, an optional answer key or a
+  target architecture is a minor bump.</li>
+<li>The answer file declares its own <code>schema-version</code>; the installer refuses a
+  schema it does not implement rather than ignoring unknown fields.</li>
+<li>Supported Guix System: the current stable release at the time of the product
+  release, recorded in <code>/etc/gradus/provenance.scm</code>.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "content.code.copy"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
