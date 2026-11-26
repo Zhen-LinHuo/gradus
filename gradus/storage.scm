@@ -65,6 +65,26 @@ blkid on them.  DEVICES is a list of paths such as \"/dev/loop0p2\"."
       (error "blkid failed" devices))
     (parse-blkid output)))
 
+(define (read-btrfs-map root-device)
+  "The device map for a freshly made btrfs ROOT-DEVICE.  libblkid in this image
+predates the block-group-tree superblock that current btrfs-progs writes, so
+blkid sees nothing; btrfs's own tools know the format.  The label is the one
+mkfs was given."
+  (let-values (((status output) (run-command (system-tool "btrfs")
+                                             "filesystem" "show" root-device)))
+    (unless (zero? status)
+      (error "btrfs filesystem show failed" root-device))
+    (let* ((lines (string-split output #\newline))
+           (uuid (any (lambda (line)
+                        (and (string-contains line "uuid:")
+                             (string-trim-both
+                              (last (string-split line #\space)))))
+                      lines)))
+      (list (cons "gradus-root"
+                  (list (cons 'device root-device)
+                        (cons 'type "btrfs")
+                        (cons 'uuid uuid)))))))
+
 (define (partition-name disk number)
   "Return the device name of partition NUMBER on DISK.  Disks whose name ends
 in a digit (loop0, nvme0n1) use a p separator; classical names do not."
@@ -208,8 +228,10 @@ for, is LUKS1 because GRUB has to read the root file system at boot."
           (error (format #f "~a failed" (car command)) root-device)))
       (append
        (read-device-map (append (if efi? (list first-part) '())
-                                (if swap-part (list swap-part) '())
-                                (list root-device)))
+                                (if swap-part (list swap-part) '())))
+       (if (string=? fs "btrfs")
+           (read-btrfs-map root-device)
+           (read-device-map (list root-device)))
        ;; render needs the underlying partition for mapped-device, which blkid
        ;; cannot tell from the mapper's own label.
        (if encryption
