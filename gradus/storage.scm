@@ -59,7 +59,8 @@ cannot be addressed by the prepare step."
   "Return the label-keyed device map for the given device names, by running
 blkid on them.  DEVICES is a list of paths such as \"/dev/loop0p2\"."
   (let-values (((status output) (apply run-command
-                                       "blkid" "-o" "export" devices)))
+                                       (system-tool "blkid")
+                                       "-o" "export" devices)))
     (unless (zero? status)
       (error "blkid failed" devices))
     (parse-blkid output)))

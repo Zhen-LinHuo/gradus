@@ -16,7 +16,8 @@
             log-open
             run-command
             run-command/stream
-            with-secret-file))
+            with-secret-file
+            system-tool))
 
 ;;; Exit statuses, as documented in docs/contract.md §7.
 
@@ -25,6 +26,13 @@
 (define +exit-target+ 3)
 (define +exit-install+ 4)
 (define +exit-interrupted+ 5)
+
+(define (system-tool name)
+  "Absolute path for NAME inside the running system's profile, falling back to
+a bare name.  The installer's PATH does not include the profile's sbin, so sbin
+tools (blkid, findfs) cannot be called by name."
+  (let ((path (string-append "/run/current-system/profile/sbin/" name)))
+    (if (file-exists? path) path name)))
 
 (define %log-port #f)
 
