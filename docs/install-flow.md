@@ -24,7 +24,7 @@ system, while Gradus leaves a system **and** the declaration that describes it.
 Two structural notes:
 
 - Both reference installers use a **hub** (a summary screen whose sections can be
-  visited in any order), not a strict wizard. Our first release is linear
+  visited in any order), not a strict wizard. The first release is linear
   because linearity is cheaper to get right; the pages are specified as
   independent so a hub can replace the order later without rewriting them.
 - Neither reference installer is declarative. Their "summary" is a summary of
