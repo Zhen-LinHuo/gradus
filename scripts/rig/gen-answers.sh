@@ -28,7 +28,8 @@ cat <<EOF
  (storage (mode . simple) (disk . "/dev/vda")
           (esp-size . 1024) (swap-size . 0) (root-size . 0)
           (filesystem . "$FS"))
- (source (substitutes ((url . "https://mirror.sjtu.edu.cn/guix") (kind . mirror))
+ (source (substitute-services
+                       ((url . "https://mirror.sjtu.edu.cn/guix") (kind . mirror))
                        ((url . "https://ci.guix.gnu.org") (kind . official))))
  (boot (bootloader . $BL) (timeout . 5))
  (network (management . dhcp))

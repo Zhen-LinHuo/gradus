@@ -638,7 +638,12 @@ fields once an `action' row is activated."
            (wizard-set
             (wizard-set wizard 'source
                         (list (cons 'substitute-services services)))
-            'proxy (if (string-null? proxy) #f proxy)))))))))
+            'proxy (if (string-null? proxy)
+                       #f
+                       ;; The readers expect the contract's association list;
+                       ;; a bare string made `assq-ref' die mid-install.
+                       (list (cons 'http proxy)
+                             (cons 'https proxy)))))))))))
 
 (define (page-boot win wizard)
   (let* ((default-index (if (eq? (firmware-bootloader) 'grub-efi) 1 0))
