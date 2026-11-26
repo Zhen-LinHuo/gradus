@@ -7,7 +7,9 @@
 (define-module (gradus tui)
   #:use-module (ncurses curses)
   #:use-module (gradus answers)
+  #:use-module (gradus config)
   #:use-module (gradus install)
+  #:use-module (gradus render)
   #:use-module (gradus storage)
   #:use-module (gnu system shadow)
   #:use-module (gradus utils)
@@ -831,6 +833,10 @@ fields once an `action' row is activated."
         ((5) (wizard-goto wizard 'network))
         (else (wizard-goto wizard 'users))))))
 
+;; Set by run-tui: when true, the final wizard step checks and prints the
+;; plan without writing anything (contract §2, validation mode).
+(define %dry-run? (make-parameter #f))
+
 (define (page-install win wizard)
   (clear win)
   (box win (acs-vline) (acs-hline))
@@ -850,13 +856,22 @@ fields once an `action' row is activated."
     (call-with-output-file answers-file
       (lambda (port)
         (format port ";; written by the gradus installer~%~s~%" answers)))
-    (catch #t
-      (lambda ()
-        (install-answers/alist answers answers-file root)
-        (format #t "~a~%  ~a/etc/config.scm~%" (tr wizard 'done) root))
-      (lambda (key . args)
-        (format (current-error-port) "install failed: ~a ~s~%" key args)))
-    0))
+    (if (%dry-run?)
+        ;; Validation mode: every check, the rendered plan, nothing written.
+        (begin
+          (validate-answers answers)
+          (display (plan->string
+                    (configuration-plan (render-answers answers))))
+          (format #t "~%dry run: nothing was written~%")
+          0)
+        (begin
+          (catch #t
+            (lambda ()
+              (install-answers/alist answers answers-file root)
+              (format #t "~a~%  ~a/etc/config.scm~%" (tr wizard 'done) root))
+            (lambda (key . args)
+              (format (current-error-port) "install failed: ~a ~s~%" key args)))
+          0))))
 
 (define %pages
   `((language . ,page-language)
@@ -872,9 +887,12 @@ fields once an `action' row is activated."
 
 ;; ------------------------------------------------------------------ main
 
-(define (run-tui)
-  "Run the interactive installer in this terminal."
-  (let ((win (initscr)))
+(define (run-tui dry-run?)
+  "Run the interactive installer in this terminal.  When DRY-RUN? is true the
+wizard runs normally and the final step checks and prints the plan without
+writing anything, per contract §2 (validation mode)."
+  (parameterize ((%dry-run? dry-run?))
+   (let ((win (initscr)))
     ;; raw mode, not cbreak: cbreak leaves ISIG on, so ^C would signal the
     ;; process instead of reaching us as a key, and the installer has to shut
     ;; the terminal down cleanly itself.
@@ -904,4 +922,4 @@ fields once an `action' row is activated."
                 (format (current-error-port) "page error at ~a: ~a ~s~%"
                         (wizard-step wizard) key args)
                 1))))))))
-    0))
+     0)))
