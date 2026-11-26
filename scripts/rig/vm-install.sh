@@ -15,15 +15,18 @@ set -eu
 FS=${1:?usage: vm-install.sh FS FW}
 FW=${2:?usage: vm-install.sh FS FW}
 
-# The rig owns the host's qemu: a stale VM holding the disk image would
-# deadlock this cell.  (A blank disk halts SeaBIOS before the CD is tried,
-# which looks like a silently dead serial console — always pass -boot order.)
-pkill -f qemu-system-x86_64 2>/dev/null || true
-sleep 2
-
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 B="$ROOT/.build/vm-$FS-$FW"
 mkdir -p "$B"
+RUNLOG="$B/run.log"
+
+# The rig owns the host's qemu: a stale VM holding the disk image would
+# deadlock this cell, and two overlapping runs would stomp on the same
+# transcript.  flock makes an overlap a clean skip; a stale VM is cleared.
+pkill -f qemu-system-x86_64 2>/dev/null || true
+sleep 2
+exec 9>"$ROOT/.build/mx.lock"
+flock -n 9 || { echo "another matrix run is active; skipping"; exit 0; }
 
 # 1. the medium (make iso embeds the source tarball and prints the store path)
 sh "$ROOT/scripts/rig/gen-answers.sh" "$FS" "$FW" > "$B/answers.scm"
