@@ -5,7 +5,7 @@ what it produces, and what it promises. Anything that consumes the installer —
 a fleet repository, a CI job, a human with a USB stick — may rely on this file
 and on nothing else.
 
-Contract version: **1**. Product version: **0.1.0** (design stage).
+Contract version: **1**. Product version: **0.3.0**.
 
 ## 1. Scope
 

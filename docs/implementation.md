@@ -1,6 +1,6 @@
 # Implementation
 
-Product version: 0.1.0 (design stage). Contract version: 1.
+Product version: 0.3.0. Contract version: 1.
 
 ## Language: Guile Scheme
 
@@ -45,21 +45,25 @@ the system, running `guix system init` — goes through the command line. Record
 construction and answer validation use the modules, where a version mismatch is
 a build error rather than a silent difference in behaviour.
 
-## Planned module layout
+## Module layout
 
 ```
 gradus/
   answers.scm      answer-file records, defaults, validation
-  render.scm       answers -> operating-system
+  wizard.scm       page and field state machine (fields are plain data)
+  render.scm       answers -＞ operating-system
+  serialize.scm    answers and device map -＞ self-contained config.scm text
   storage.scm      partitioning, formatting, mounting, preservation rules
-  boot.scm         bootloader selection, kernel arguments, menu policy
-  source.scm       channels, substitute services, proxy
-  ui/              page framework and pages
-  script.scm       command-line entry point
+  install.scm      mount plan, guix system init, daemon lifecycle, logging
+  utils.scm        subprocess handling, exit codes, secret files
+  tui.scm          ncurses frontend (renders the wizard page model)
+  script.scm       command-line entry point (--config / --answers / --tui)
 tests/             SRFI-64 tests, one file per module
 ```
 
-Modules live in the `(gradus …)` namespace. A module offered upstream moves to
+The layering contract — which module may import which, and the data contracts
+between core and frontends — is defined in `docs/architecture.md`. Modules
+live in the `(gradus …)` namespace. A module offered upstream moves to
 `(gnu installer …)` and follows the rules of that tree; a module in this
 repository never claims the `(gnu …)` namespace.
 
