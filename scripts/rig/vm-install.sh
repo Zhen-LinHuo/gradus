@@ -53,7 +53,7 @@ qemu-system-x86_64 -enable-kvm -m 8192 -display none -daemonize \
 trap 'kill "$(cat "$B/qemu.pid" 2>/dev/null)" 2>/dev/null || true' EXIT
 
 deadline=$(( $(date +%s) + 2700 ))
-until grep -qE "installed;|install failed|the installer exited" "$B/serial-install.log" 2>/dev/null; do
+until grep -qE "installed;|install failed|installation failed|the installer exited|gradus-installer-exit-" "$B/serial-install.log" 2>/dev/null; do
   [ "$(date +%s)" -gt "$deadline" ] && { echo "TIMEOUT waiting for the install"; exit 1; }
   sleep 15
 done
