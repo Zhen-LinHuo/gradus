@@ -10,8 +10,11 @@ surface: write them as sentences, not as codes.
 
 ## Documentation first
 
-The contract (`docs/contract.md`) is authoritative. A change in behaviour that
-is not reflected there is incomplete, regardless of whether the code works.
+The documents in `docs/` are the specification: `contract.md` for the external
+contract, `architecture.md` for the structure and the core/frontend boundary,
+`pages.md` for the wizard surface. Code is written from the reviewed documents,
+never the other way round. A change in behaviour that is not reflected there is
+incomplete, regardless of whether the code works.
 
 Promote a feature to the roadmap in `README.md` only after its page or option is
 specified in `docs/`. Specifications describe observable behaviour; they do not

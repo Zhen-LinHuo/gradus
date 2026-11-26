@@ -129,16 +129,31 @@ directly.
 The core raises structured conditions, never prints. A condition carries a
 category and a message:
 
-| category | meaning | typical exit |
-|:--|:--|:--|
-| `decision` | the operator's input is incomplete or contradictory | 2 |
-| `environment` | the machine refuses (busy disk, missing tool, unreachable server) | 3 |
-| `defect` | the installer itself failed | 4 |
+| category | meaning |
+|:--|:--|
+| `decision` | the operator's input is incomplete or contradictory |
+| `environment` | the machine or the network refuses — a busy or missing disk, a missing tool, an unreachable server |
+| `defect` | the installer itself failed |
 
 Frontends render conditions in their own idiom — the TUI below the form that
-caused them, a web frontend as structured JSON. The mapping from category to
-exit code is defined in `docs/contract.md` and applied by the CLI entry
-point, so every frontend inherits it.
+caused them, a web frontend as structured JSON. Categories are not exit
+codes: the mapping onto `docs/contract.md` §7 follows the contract, not the
+category. `decision` exits 2; an `environment` refusal before anything is
+written to the target exits 3, one encountered during installation exits 4;
+a `defect` exits 4. The CLI entry point applies the mapping, so every
+frontend inherits it.
+
+## Implementation status
+
+Implemented today: the answer schema and validator, the wizard page model
+with its back semantics, typed conditions, the storage operations for the
+supported file systems, and the TUI. In the tree but data-driven only
+partially: substitutes, proxy and kernel arguments follow the selection
+models; the package-pattern table and the filesystem capability table are
+specified here and land with the refactor that consumes them. The web
+frontend is planned. Until a section is implemented, `docs/contract.md`
+section 2 and `docs/pages.md` remain the authority on what the software
+accepts today.
 
 ## Cross-cutting invariants
 
