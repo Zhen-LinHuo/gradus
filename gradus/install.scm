@@ -99,7 +99,42 @@ success; raise on the first failure."
     (unless (zero? (run-command/stream "guix" "system" "init" config-file root))
       (exit +exit-install+))
     (write-provenance root config-file "config")
+    (finish-target root)
     (log-line "==> [4/4] installed; declaration kept at ~a/etc/config.scm" root)))
+
+;; Shut the target down after the last write.  Leaving it mounted shuts the
+;; filesystem down uncleanly: the journal stays dirty, the free counts in the
+;; superblock go stale, and GRUB can no longer read the filesystem it is about
+;; to boot — it falls into rescue mode claiming normal.mod is missing while the
+;; file sits right there.  e2fsck settles all three, which is what makes the
+;; installed disk bootable again.
+(define (findmnt-source point)
+  "Return the device mounted at POINT, or the empty string."
+  (let ((port (open-pipe* OPEN_READ "findmnt" "-n" "-o" "SOURCE" point)))
+    (let ((line (read-line port)))
+      (close-pipe port)
+      (if (eof-object? line) "" (string-trim-both line)))))
+
+(define (finish-target root)
+  "Unmount ROOT and check its filesystem.  Raise an installer error if the
+target stays mounted or the check cannot repair the filesystem."
+  (unless (member root '("/" "//"))
+    (let ((device (findmnt-source root)))
+      (log-line "==> unmounting ~a" root)
+      (system* "sh" "-c" (string-append "umount -R " root " 2>/dev/null || true"))
+      (when (zero? (status:exit-val (system* "mountpoint" "-q" root)))
+        (error "the target is still mounted; it cannot be shut down cleanly" root))
+      (when (and (not (string=? device "")) (file-exists? device))
+        (log-line "==> checking ~a" device)
+        (let ((status (status:exit-val
+                       (system* "sh" "-c"
+                                (string-append "e2fsck -fy " device
+                                               " >/dev/null 2>&1")))))
+          ;; e2fsck exits with a bitmask: 1 means errors corrected, 4 means
+          ;; errors left uncorrected — the latter must not be reported as a
+          ;; successful install.
+          (when (and status (>= status 4))
+            (error "the filesystem check could not repair the target" device)))))))
 
 (define (substitute-urls answers)
   "The substitute URLs declared in ANSWERS, in the order written."
@@ -218,6 +253,7 @@ ANSWERS-FILE is where the answers are (or will be) recorded for provenance."
                                     (list declaration root))))
         (exit +exit-install+)))
     (write-provenance root declaration "answers")
+    (finish-target root)
     (log-line "installed; declaration kept at ~a/etc/config.scm" root)))
 
 (define (install-answers answers-file root)
