@@ -31,7 +31,14 @@ cat <<EOF
  (source (substitute-services
                        ((url . "https://mirror.sjtu.edu.cn/guix") (kind . mirror))
                        ((url . "https://ci.guix.gnu.org") (kind . official))))
- (boot (bootloader . $BL) (timeout . 5))
+ (boot (bootloader . $BL) (timeout . 5)
+       ;; The matrix asserts the login prompt on the serial console, so the
+       ;; installed system has to be told to print there: GRUB's menu, the
+       ;; kernel, and the getty all follow from these three fields.
+       (terminal-outputs console serial)
+       (serial-unit . 0)
+       (serial-speed . 115200)
+       (extra-kernel-arguments "console=ttyS0,115200"))
  (network (management . dhcp))
  (users ((name . "tester") (group . "users") (password . "$HASH")))
  (root-password . "$HASH"))
