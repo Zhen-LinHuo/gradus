@@ -15,6 +15,12 @@ set -eu
 FS=${1:?usage: vm-install.sh FS FW}
 FW=${2:?usage: vm-install.sh FS FW}
 
+# The rig owns the host's qemu: a stale VM holding the disk image would
+# deadlock this cell.  (A blank disk halts SeaBIOS before the CD is tried,
+# which looks like a silently dead serial console — always pass -boot order.)
+pkill -f qemu-system-x86_64 2>/dev/null || true
+sleep 2
+
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 B="$ROOT/.build/vm-$FS-$FW"
 mkdir -p "$B"
@@ -35,6 +41,7 @@ OVMF_ARGS=""
 qemu-system-x86_64 -enable-kvm -m 8192 -display none -daemonize \
   -serial "file:$B/serial-install.log" \
   -monitor "unix:$B/mon-install.sock,server,nowait" \
+  -boot order=d \
   -cdrom "$ISO" \
   -drive "file=$B/disk.qcow2,if=virtio,format=qcow2" \
   -virtfs "local,id=repo,path=$B/share,mount_tag=repo,security_model=none" \
