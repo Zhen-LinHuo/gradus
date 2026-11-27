@@ -8,6 +8,7 @@
   #:use-module (ice-9 rdelim)
   #:use-module (gradus utils)
   #:use-module (gradus fs)
+  #:use-module (gradus selection)
   #:use-module (gradus storage)
   #:use-module (gradus render)
   #:use-module (gradus serialize)
@@ -150,49 +151,30 @@ cannot repair the filesystem."
             (when (and status (>= status 4))
               (error "the filesystem check could not repair the target" device))))))))
 
-(define (substitute-urls answers)
-  "The substitute URLs declared in ANSWERS, in the order written."
-  (filter-map (lambda (service) (assq-ref service 'url))
-              (or (assq-ref (assq-ref answers 'source) 'substitute-services) '())))
-
 (define (authorize-declared-keys answers)
   "Authorise the signing keys the answers name, when they are readable.  A
 failure is reported, not fatal: an unauthorised builder simply will not be
 used, and the installation falls back to the sources it can trust."
   (for-each
-   (lambda (service)
-     (let ((key (assq-ref service 'key)))
-       (when (and key (file-exists? key))
-         (unless (zero? (run-command/stream
-                         "sh" "-c"
-                         (format #f "guix archive --authorize < ~a" key)))
-           (log-line "could not authorise ~a; its substitutes will be refused" key)))))
-   (or (assq-ref (assq-ref answers 'source) 'substitute-services) '())))
+   (lambda (key)
+     (when (file-exists? key)
+       (unless (zero? (run-command/stream
+                       "sh" "-c"
+                       (format #f "guix archive --authorize < ~a" key)))
+         (log-line "could not authorise ~a; its substitutes will be refused" key))))
+   (selection-signing-keys answers)))
 
 (define (apply-proxy-environment answers)
   "Put the proxy from the answers into this process's environment: channel
 fetches and any HTTP the installer performs itself read these variables."
-  (let ((proxy (assq-ref answers 'proxy)))
-    (when proxy
-      (let ((http (assq-ref proxy 'http))
-            (https (assq-ref proxy 'https))
-            (no-proxy (assq-ref proxy 'no-proxy)))
-        (when http (setenv "http_proxy" http))
-        (when https (setenv "https_proxy" https))
-        (when no-proxy
-          (setenv "no_proxy" (string-join no-proxy ",")))
-        (log-line "proxy: http=~a https=~a no_proxy=~a"
-                  (or http "-") (or https "-")
-                  (if no-proxy (string-join no-proxy ",") "-"))))))
-
-(define (restart-daemon-requested?)
-  ;; Kept for operators who run the installer on a machine they do not own:
-  ;; GRADUS_NO_DAEMON_RESTART=1 leaves the running daemon alone.
-  "Whether the operator asked for the daemon restart that makes substitutes
-follow the proxy.  It is opt-in because restarting the daemon interrupts any
-other build on the machine."
-  (and=> (getenv "GRADUS_RESTART_DAEMON")
-         (lambda (value) (string=? value "1"))))
+  (let ((environment (selection-proxy-environment answers)))
+    (unless (null? environment)
+      (for-each (lambda (pair) (setenv (car pair) (cdr pair)))
+                environment)
+      (log-line "proxy: http=~a https=~a no_proxy=~a"
+                (or (assoc-ref environment "http_proxy") "-")
+                (or (assoc-ref environment "https_proxy") "-")
+                (or (assoc-ref environment "no_proxy") "-")))))
 
 (define (wait-for-daemon-socket attempts)
   "Wait for the guix-daemon socket, up to ATTEMPTS seconds."
@@ -201,41 +183,36 @@ other build on the machine."
         (else (sleep 1) (wait-for-daemon-socket (- attempts 1)))))
 
 (define (restart-guix-daemon answers)
-  "Restart guix-daemon so that it inherits the proxy environment.  Substitutes
-are fetched by the daemon, so exporting the variables in this process does not
-reach them.  Only runs when the answers declare a proxy and the operator opted
-in: stopping the daemon interrupts any other build on the machine."
+  "Restart guix-daemon so that it inherits the proxy environment and the
+declared substitute URLs.  Substitutes are fetched by the daemon, so
+exporting the variables in this process does not reach them.  The restart is
+part of every install; GRADUS_NO_DAEMON_RESTART=1 leaves a daemon the
+operator does not own alone."
   (when (not (getenv "GRADUS_NO_DAEMON_RESTART"))
-    (if #f #f
-        (begin
-          (log-line "restarting guix-daemon to apply the proxy")
-          (unless (zero? (run-command/stream "herd" "stop" "guix-daemon"))
-            (log-line "could not stop guix-daemon")
-            (exit +exit-install+))
-          ;; A rerun must not leave a previous daemon competing for the store
-          ;; locks; the restart owns the daemon from here on.
-          (run-command/stream "pkill" "-x" "guix-daemon")
-          (sleep 1)
-          (let* ((urls (filter-map
-                        (lambda (service) (assq-ref service 'url))
-                        (or (assq-ref (assq-ref answers 'source)
-                                      'substitute-services)
-                            '())))
-                 (url-option (if (pair? urls)
-                                 (string-append " --substitute-urls='"
-                                                (string-join urls " ") "'")
-                                 "")))
-            (unless (zero? (run-command/stream
-                            "sh" "-c"
-                            (string-append
-                             "guix-daemon --build-users-group=guixbuild"
-                             url-option
-                             " >/var/log/gradus-daemon.log 2>&1 &")))
-              (log-line "could not start guix-daemon")
-              (exit +exit-install+)))
-          (unless (wait-for-daemon-socket 20)
-            (log-line "the daemon socket did not appear; restore it with 'herd start guix-daemon'")
-            (exit +exit-install+))))))
+    (log-line "restarting guix-daemon to apply the proxy")
+    (unless (zero? (run-command/stream "herd" "stop" "guix-daemon"))
+      (log-line "could not stop guix-daemon")
+      (exit +exit-install+))
+    ;; A rerun must not leave a previous daemon competing for the store
+    ;; locks; the restart owns the daemon from here on.
+    (run-command/stream "pkill" "-x" "guix-daemon")
+    (sleep 1)
+    (let* ((urls (selection-substitute-urls answers))
+           (url-option (if (pair? urls)
+                           (string-append " --substitute-urls='"
+                                          (string-join urls " ") "'")
+                           "")))
+      (unless (zero? (run-command/stream
+                      "sh" "-c"
+                      (string-append
+                       "guix-daemon --build-users-group=guixbuild"
+                       url-option
+                       " >/var/log/gradus-daemon.log 2>&1 &")))
+        (log-line "could not start guix-daemon")
+        (exit +exit-install+)))
+    (unless (wait-for-daemon-socket 20)
+      (log-line "the daemon socket did not appear; restore it with 'herd start guix-daemon'")
+      (exit +exit-install+))))
 
 (define (install-answers/alist answers answers-file root)
   "Prepare the target from the ANSWERS alist, render, mount and install.
@@ -255,7 +232,7 @@ ANSWERS-FILE is where the answers are (or will be) recorded for provenance."
         (exit +exit-target+)))
     (authorize-declared-keys answers)
     (log-line "installing")
-    (let* ((urls (substitute-urls answers))
+    (let* ((urls (selection-substitute-urls answers))
            (options (if (null? urls) '()
                         (list (string-append "--substitute-urls="
                                              (string-join urls " "))))))
