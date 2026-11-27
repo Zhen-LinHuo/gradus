@@ -241,12 +241,6 @@ account.
 `gradus login:` (the host name comes from the answers), and `root` with the
 password entered in step 4 reaches `root@gradus ~#`.
 
-**Bugs this run caught** (all fixed before it passed): a stray `reviewed` key
-rejected by the answer schema; a missing mkfs tool failing after partitioning;
-`mount LABEL=` racing udev; a duplicate getty fighting over ttyS0; the daemon
-ignoring the declared substitute URLs; and a comment swallowing a parenthesis
-that only the real front-end could reach.
-
 ## Evidence
 
 An installation counts as tested only when all of the following are attached to

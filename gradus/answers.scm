@@ -110,6 +110,70 @@ the operator can repair without physical access."
                (answers-error (format #f "~a must be a non-negative integer" key))))))
        '(serial-unit serial-speed timeout)))))
 
+(define %source-keys '(channels substitute-services))
+(define %substitute-kinds '(official mirror builder))
+
+(define (check-source answers)
+  "Reject unknown keys and malformed entries under `source'.  A misspelled
+substitute key used to sail through validation and quietly leave the daemon
+on its default sources — the silent degradation the contract forbids."
+  (let ((source (answer-ref answers 'source)))
+    (when source
+      (unless (and (list? source) (or (null? source) (pair? (car source))))
+        (answers-error "source must be an association list"))
+      (for-each
+       (lambda (entry)
+         (unless (member (car entry) %source-keys)
+           (answers-error
+            (format #f "unknown source key: ~a (expected one of: ~a)"
+                    (car entry)
+                    (string-join (map symbol->string %source-keys) ", ")))))
+       source)
+      (let ((services (answer-ref source 'substitute-services)))
+        (when services
+          (unless (and (list? services) (or (null? services) (pair? (car services))))
+            (answers-error "substitute-services must be a list of entries"))
+          (for-each
+           (lambda (service)
+             (unless (and (list? service) (pair? service))
+               (answers-error "each substitute service must be an association list"))
+             (let ((url (assq-ref service 'url))
+                   (kind (assq-ref service 'kind)))
+               (unless (non-empty-string? url)
+                 (answers-error "a substitute service needs a non-empty url"))
+               (when kind
+                 (unless (memq kind %substitute-kinds)
+                   (answers-error
+                    (format #f "unknown substitute kind: ~a (expected one of: ~a)"
+                            kind
+                            (string-join (map symbol->string %substitute-kinds)
+                                         ", ")))))))
+           services))))))
+
+(define (check-proxy answers)
+  "The proxy is an association list; a bare URL string would make both readers
+call `assq-ref' on a string and die during the install."
+  (let ((proxy (answer-ref answers 'proxy)))
+    (when proxy
+      (unless (and (list? proxy) (or (null? proxy) (pair? (car proxy))))
+        (answers-error
+         "proxy must be an association list with http, https and no-proxy"))
+      (for-each
+       (lambda (entry)
+         (unless (member (car entry) '(http https no-proxy))
+           (answers-error (format #f "unknown proxy key: ~a" (car entry)))))
+       proxy)
+      (for-each
+       (lambda (key)
+         (let ((value (assq-ref proxy key)))
+           (when value
+             (if (eq? key 'no-proxy)
+                 (unless (and (list? value) (every non-empty-string? value))
+                   (answers-error "no-proxy must be a list of host names"))
+                 (unless (non-empty-string? value)
+                   (answers-error (format #f "proxy ~a must be a string" key)))))))
+       '(http https no-proxy)))))
+
 (define (check-storage answers)
   "Refuse storage combinations the installer cannot honour.  The check runs
 before anything is written to a disk: finding out after partitioning that the
@@ -152,4 +216,6 @@ answers error listing the first problem found."
   (check-values answers)
   (check-storage answers)
   (check-boot answers)
+  (check-source answers)
+  (check-proxy answers)
   answers)
