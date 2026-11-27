@@ -4,6 +4,7 @@
 ;;; This file is part of Gradus.
 
 (define-module (gradus render)
+  #:use-module (gradus fs)
   #:use-module (gnu)
   #:use-module (gnu bootloader)
   #:use-module (gnu packages linux)
@@ -157,7 +158,7 @@ map is keyed by label strings, so the lookup is by `assoc-ref'."
 system partition on an EFI machine.  A BIOS machine has a BIOS Boot partition
 instead, which carries no file system and is not mounted.  Devices are
 addressed by UUID when the map knows them, by label otherwise."
-  (let ((fs (or (assq-ref (assq-ref answers 'storage) 'filesystem) "ext4")))
+  (let ((fs (or (assq-ref (assq-ref answers 'storage) 'filesystem) (fs-default))))
     (append
      (list (file-system
              (mount-point "/")

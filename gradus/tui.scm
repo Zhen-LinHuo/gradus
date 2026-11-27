@@ -8,6 +8,7 @@
   #:use-module (ncurses curses)
   #:use-module (gradus answers)
   #:use-module (gradus config)
+  #:use-module (gradus fs)
   #:use-module (gradus install)
   #:use-module (gradus render)
   #:use-module (gradus storage)
@@ -495,8 +496,8 @@ fields once an `action' row is activated."
                                    labels)
                        (make-field "Layout" 'menu "standard partitions"
                                    (list "standard partitions" "LVM"))
-                       (make-field "Root filesystem" 'menu "ext4"
-                                   (list "ext4" "btrfs" "xfs"))
+                       (make-field "Root filesystem" 'menu (fs-default)
+                                   (fs-names))
                        (make-field "ESP size (MiB, EFI only)" 'menu 1024
                                    (list 512 1024 2048 "custom (type a value)"))
                        (make-field "Swap size (MiB, 0 = none)" 'menu 0
@@ -790,7 +791,7 @@ fields once an `action' row is activated."
          (rows (list (cons "host name  " (or (assq-ref a 'host-name) "gradus"))
                      (cons "disk       " (format #f "~a (~a)"
                                                  (assq-ref storage 'disk)
-                                                 (or (assq-ref storage 'filesystem) "ext4")))
+                                                 (or (assq-ref storage 'filesystem) (fs-default))))
                      (cons "layout     " (format #f "~a, swap ~a MiB"
                                                  (assq-ref storage 'mode)
                                                  (or (assq-ref storage 'swap-size) 0)))

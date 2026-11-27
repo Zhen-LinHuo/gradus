@@ -7,6 +7,7 @@
   #:use-module (ice-9 exceptions)
   #:use-module (ice-9 format)
   #:use-module (ice-9 match)
+  #:use-module (gradus fs)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-35)
   #:export (read-answers
@@ -180,8 +181,14 @@ before anything is written to a disk: finding out after partitioning that the
 result would be a plaintext disk or an unbootable declaration is too late."
   (let* ((storage (answer-ref answers 'storage))
          (mode (answer-ref storage 'mode))
+         (filesystem (answer-ref storage 'filesystem))
          (encryption (answer-ref storage 'encryption))
          (swap (or (answer-ref storage 'swap-size) 0)))
+    (when filesystem
+      (unless (and (string? filesystem) (fs-lookup filesystem))
+        (answers-error
+         (format #f "unknown filesystem: ~a (expected one of: ~a)"
+                 filesystem (string-join (fs-names) ", ")))))
     (unless (memq mode '(simple lvm))
       (answers-error
        (format #f "storage mode ~a is not implemented; use `simple' or `lvm'"
