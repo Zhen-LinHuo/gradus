@@ -76,8 +76,10 @@ never a frontend feature:
 **Package groups** follow the idea the openSUSE installer calls *patterns*: a named
 group of packages that yields a working set of functionality — "internet
 gateway", "file server", "console tools" — instead of asking the operator to
-know package names. Each package group is a Guix manifest file in `manifests/package-groups`,
-identified by its file name, so the package manager consumes it directly
+know package names. Each package group is a Guix manifest file under a
+category subdirectory of `manifests/package-groups` — TW's own organisation,
+one directory per category — identified by its file name, so the package
+manager consumes it directly
 (`guix package -m <file>`) and this installer only reads it: there is no
 selection format of the installer's own. The files carry the openSUSE
 Tumbleweed pattern of the same name, with packages that have no same-named
