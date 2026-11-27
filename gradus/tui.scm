@@ -681,13 +681,17 @@ fields once an `action' row is activated."
   '("htop" "vim" "git" "tmux" "curl" "rsync" "btrfs-progs" "xfsprogs"))
 
 (define (%software-entries)
-  "The rows of the software page: the bundled groups first, then the named
-packages.  Section labels are not selectable."
-  (append (map (lambda (id)
-                 (list 'package-group id (package-group-description id)))
-               (package-group-ids))
-          (list (list 'label "Package groups")
-                 (list 'label "Named packages"))
+  "The rows of the software page: one label per category followed by its
+groups, then the named packages.  Section labels are not selectable."
+  (append (concatenate
+           (map (lambda (category)
+                  (cons (list 'label (car category))
+                        (map (lambda (id)
+                               (list 'package-group id
+                                     (package-group-description id)))
+                             (cdr category))))
+                (package-group-tree)))
+          (list (list 'label "Named packages"))
           (map (lambda (name) (list 'package name #f)) %extra-packages)))
 
 (define (%software-move entries cursor delta)
@@ -721,26 +725,35 @@ packages.  Section labels are not selectable."
       (box win (acs-vline) (acs-hline))
       (put win 0 2 " Software ")
       (put win 2 2 "Space or Enter marks a group or package; c accepts.")
-      (let draw ((rows entries) (row 4) (i 0))
-        (unless (null? rows)
-          (let ((entry (car rows)))
-            (case (first entry)
-              ((label)
-               (put win row 2 (format #f " ~a" (second entry))))
-              ((package-group)
-               (put win row 2
-                    (format #f "~a [~a] ~a  ~a"
-                            (if (= i cursor) ">" " ")
-                            (if (member (second entry) groups) "x" " ")
-                            (second entry) (third entry))))
-              ((package)
-               (put win row 2
-                    (format #f "~a [~a] ~a"
-                            (if (= i cursor) ">" " ")
-                            (if (member (second entry) packages) "x" " ")
-                            (second entry)))))
-            (draw (cdr rows) (+ row 1) (+ i 1)))))
-      (put win (+ 4 (length entries)) 2
+      ;; Sixteen rows fit between the hint and the footer; the rest scroll
+      ;; past, so the cursor decides which slice is on screen.
+      (let* ((visible 16)
+             (count (length entries))
+             (focus (if (>= cursor count) (max 0 (- count 1)) cursor))
+             (offset (max 0 (min (- focus (- visible 1))
+                                 (max 0 (- count visible))))))
+        (let draw ((rows (list-tail entries offset))
+                   (row 4)
+                   (i offset))
+          (when (and (pair? rows) (<= row 19))
+            (let ((entry (car rows)))
+              (case (first entry)
+                ((label)
+                 (put win row 2 (format #f " ~a" (second entry))))
+                ((package-group)
+                 (put win row 2
+                      (format #f "~a [~a] ~a  ~a"
+                              (if (= i cursor) ">" " ")
+                              (if (member (second entry) groups) "x" " ")
+                              (second entry) (third entry))))
+                ((package)
+                 (put win row 2
+                      (format #f "~a [~a] ~a"
+                              (if (= i cursor) ">" " ")
+                              (if (member (second entry) packages) "x" " ")
+                              (second entry)))))
+              (draw (cdr rows) (+ row 1) (+ i 1))))))
+      (put win 21 2
            (format #f "~a Continue"
                    (if (= cursor (length entries)) ">" "")))
       (refresh win)
