@@ -8,6 +8,7 @@
   #:use-module (ice-9 format)
   #:use-module (ice-9 match)
   #:use-module (gradus fs)
+  #:use-module (gradus package-groups)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-35)
   #:export (read-answers
@@ -214,6 +215,31 @@ result would be a plaintext disk or an unbootable declaration is too late."
        (loop (cons k seen) rest))
       (_ (answers-error "the answer form is not an association list")))))
 
+(define (check-software answers)
+  "Refuse software selections the installer cannot carry out: unknown keys,
+and package group names the bundled manifests do not define.  A typo in an
+unattended file would otherwise silently install nothing extra."
+  (let ((software (answer-ref answers 'software)))
+    (when software
+      (unless (and (list? software) (or (null? software) (pair? (car software))))
+        (answers-error "software must be an association list"))
+      (for-each
+       (lambda (entry)
+         (unless (member (car entry) '(package-groups extra-packages manifest))
+           (answers-error (format #f "unknown software key: ~a" (car entry)))))
+       software)
+      (let ((groups (assq-ref software 'package-groups)))
+        (when groups
+          (unless (and (list? groups) (every symbol? groups))
+            (answers-error "software.package-groups must be a list of package group names"))
+          (for-each
+           (lambda (id)
+             (unless (memq id (package-group-ids))
+               (answers-error
+                (format #f "unknown package group: ~a (available: ~a)"
+                        id (string-join (map symbol->string (package-group-ids)) ", ")))))
+           groups))))))
+
 (define (validate-answers answers)
   "Validate an answer form.  Return the form unchanged, or raise an
 answers error listing the first problem found."
@@ -225,4 +251,5 @@ answers error listing the first problem found."
   (check-boot answers)
   (check-source answers)
   (check-proxy answers)
+  (check-software answers)
   answers)

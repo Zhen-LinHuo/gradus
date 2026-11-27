@@ -1,0 +1,23 @@
+# Manifests
+
+The package groups in `package-groups/` are the openSUSE Tumbleweed patterns of the same
+name, carried over as Guix manifest files: the identifier and the summary
+come from the pattern RPMs (`patterns-base-20241218`,
+`patterns-server-20250313`), and the package list is that pattern's
+requirements and recommendations with one operation applied — packages
+that have no same-named Guix package are removed, and nothing is
+substituted for them.
+
+A group is kept only when its surviving packages still deliver what its
+name promises.  Patterns dropped whole, with the reason:
+
+- `basesystem` — an alias of `base`, by its own summary.
+- `bootloader` — grub2, shim and mokutil have no same-named package; the
+  bootloader is the installer's job here.
+- `minimal_base` — branding, build-key, distribution-release and
+  filesystem are distribution artifacts.
+- `dhcp_dns_server` — kea has no same-named package, so the survivors
+  would deliver DNS only under a name that promises DHCP too.
+
+These files are plain Guix manifests: `guix package -m <file>` installs
+the group on any Guix machine, with or without this installer.

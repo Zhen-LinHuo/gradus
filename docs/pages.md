@@ -23,7 +23,7 @@ the operator cannot inspect first.
 | 2 | Source | channels file, substitute services (name, URL, kind, key), proxy | official channels, official substitutes, no proxy | — |
 | 3 | Storage | disk, scheme (simple/LVM), encryption, swap, data volumes, erase consent | no disk selected; erase off | — |
 | 4 | Boot | bootloader (including `none`), target, kernel, extra kernel arguments, menu policy, NVRAM, generations kept | GRUB EFI on the ESP, timeout 5 | — |
-| 5 | Software | base profile, environment groups, extra packages, manifest file | headless base | — |
+| 5 | Software | base profile, package groups, extra packages, manifest file | headless base | — |
 | 6 | Network | host name, management interface, DHCP or static, wireless, proxy and `no_proxy` | DHCP on the first wired interface | — |
 | 7 | Users | root policy, user accounts, groups, SSH keys | one administrative user, no root login | — |
 | 8 | Review | full `config.scm`, diff against the starting profile, save to removable media | — | — |
@@ -111,7 +111,7 @@ cannot be given a serial console at install time.
 
 ### 5. Software
 
-A base profile plus environment groups plus free-form package names plus an
+A base profile plus package groups plus free-form package names plus an
 optional manifest. It is deliberately **not** a catalogue browser: Guix has tens
 of thousands of packages, and a picker that pretends to rank them is worse than
 a text field with completion.

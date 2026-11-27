@@ -9,6 +9,7 @@
   #:use-module (gradus answers)
   #:use-module (gradus config)
   #:use-module (gradus fs)
+  #:use-module (gradus package-groups)
   #:use-module (gradus install)
   #:use-module (gradus render)
   #:use-module (gradus storage)
@@ -678,47 +679,99 @@ fields once an `action' row is activated."
 (define %extra-packages
   '("htop" "vim" "git" "tmux" "curl" "rsync" "btrfs-progs" "xfsprogs"))
 
+(define (%software-entries)
+  "The rows of the software page: the bundled groups first, then the named
+packages.  Section labels are not selectable."
+  (append (map (lambda (id)
+                 (list 'package-group id (package-group-description id)))
+               (package-group-ids))
+          (list (list 'label "Package groups")
+                 (list 'label "Named packages"))
+          (map (lambda (name) (list 'package name #f)) %extra-packages)))
+
+(define (%software-move entries cursor delta)
+  "The selectable position DELTA steps from CURSOR, skipping section labels."
+  (let ((last (length entries)))
+    (let loop ((i (+ cursor delta)))
+      (cond ((< i 0) 0)
+            ((> i last) last)
+            ((and (< i last) (eq? (first (list-ref entries i)) 'label))
+             (loop (+ i delta)))
+            (else i)))))
+
+(define (%software-save wizard groups packages)
+  (let ((software (assq-ref (wizard-answers wizard) 'software)))
+    (wizard-next
+     (wizard-set wizard 'software
+                 (append (list (cons 'package-groups groups)
+                               (cons 'extra-packages packages))
+                         (let ((manifest (assq-ref software 'manifest)))
+                           (if manifest
+                               (list (cons 'manifest manifest))
+                               '())))))))
+
 (define (page-software win wizard)
-  (let loop ((selected (or (assq-ref (assq-ref (wizard-answers wizard) 'software)
-                                      'extra-packages)
-                           '()))
-             (cursor 0))
-    (clear win)
-    (box win (acs-vline) (acs-hline))
-    (put win 0 2 " Extra software ")
-    (put win 2 2 "Space or Enter marks a package; Continue accepts.")
-    (let draw ((items %extra-packages) (row 4) (i 0))
-      (unless (null? items)
-        (put win row 2 (format #f "~a [~a] ~a"
-                               (if (= i cursor) ">" " ")
-                               (if (member (car items) selected) "x" " ")
-                               (car items)))
-        (draw (cdr items) (+ row 1) (+ i 1))))
-    (put win (+ 4 (length %extra-packages)) 2
-         (format #f "~a Continue"
-                 (if (= cursor (length %extra-packages)) ">" " ")))
-    (refresh win)
-    (let ((k (key-code (getch win))))
-      (cond ((= k KEY_UP) (loop selected (max 0 (- cursor 1))))
-            ((= k KEY_DOWN)
-             (loop selected (min (length %extra-packages) (+ cursor 1))))
-            ((= k 27) (request-back!))
-            ((= k 3) (quit!))
-            ((= k 99)                      ; c: accept
-             (wizard-next
-              (wizard-set wizard 'software
-                          (list (cons 'extra-packages selected)))))
-            ((or (= k 10) (= k 13) (= k 32))
-             (if (= cursor (length %extra-packages))
-                 (wizard-next
-                  (wizard-set wizard 'software
-                              (list (cons 'extra-packages selected))))
-                 (let ((package (list-ref %extra-packages cursor)))
-                   (loop (if (member package selected)
-                             (delete package selected)
-                             (cons package selected))
-                         cursor))))
-            (else (loop selected cursor))))))
+  (let* ((software (assq-ref (wizard-answers wizard) 'software))
+         (entries (%software-entries)))
+    (let loop ((groups (or (assq-ref software 'package-groups) '()))
+               (packages (or (assq-ref software 'extra-packages) '()))
+               (cursor 0))
+      (clear win)
+      (box win (acs-vline) (acs-hline))
+      (put win 0 2 " Software ")
+      (put win 2 2 "Space or Enter marks a group or package; c accepts.")
+      (let draw ((rows entries) (row 4) (i 0))
+        (unless (null? rows)
+          (let ((entry (car rows)))
+            (case (first entry)
+              ((label)
+               (put win row 2 (format #f " ~a" (second entry))))
+              ((package-group)
+               (put win row 2
+                    (format #f "~a [~a] ~a  ~a"
+                            (if (= i cursor) ">" " ")
+                            (if (member (second entry) groups) "x" " ")
+                            (second entry) (third entry))))
+              ((package)
+               (put win row 2
+                    (format #f "~a [~a] ~a"
+                            (if (= i cursor) ">" " ")
+                            (if (member (second entry) packages) "x" " ")
+                            (second entry)))))
+            (draw (cdr rows) (+ row 1) (+ i 1)))))
+      (put win (+ 4 (length entries)) 2
+           (format #f "~a Continue"
+                   (if (= cursor (length entries)) ">" "")))
+      (refresh win)
+      (let ((k (key-code (getch win))))
+        (cond ((= k KEY_UP)
+               (loop groups packages
+                     (%software-move entries cursor -1)))
+              ((= k KEY_DOWN)
+               (loop groups packages
+                     (%software-move entries cursor +1)))
+              ((= k 27) (request-back!))
+              ((= k 3) (quit!))
+              ((= k 99)                      ; c: accept
+               (%software-save wizard groups packages))
+              ((or (= k 10) (= k 13) (= k 32))
+               (if (= cursor (length entries))
+                   (%software-save wizard groups packages)
+                   (let ((entry (list-ref entries cursor)))
+                     (case (first entry)
+                       ((package-group)
+                        (loop (if (member (second entry) groups)
+                                  (delete (second entry) groups)
+                                  (cons (second entry) groups))
+                              packages cursor))
+                       ((package)
+                        (loop groups
+                              (if (member (second entry) packages)
+                                  (delete (second entry) packages)
+                                  (cons (second entry) packages))
+                              cursor))
+                       (else (loop groups packages cursor))))))
+              (else (loop groups packages cursor)))))))
 
 (define (%interfaces)
   "Names of the network interfaces on this machine."

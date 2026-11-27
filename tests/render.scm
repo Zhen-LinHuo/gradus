@@ -5,6 +5,7 @@
 
 (use-modules (srfi srfi-64)
              (srfi srfi-1)
+             (guix packages)
              (gnu system)
              (gnu system file-systems)
              (gnu system mapped-devices)
@@ -191,6 +192,20 @@
            (member "no_proxy=cache.example.net" env))))
 
   (test-end "sources and proxy")
+
+  (test-begin "software groups")
+
+  (define grouped
+    (with-key 'software '((package-groups . (console)))))
+
+  (test-assert "a selected group's packages reach the operating system"
+    (let* ((os (render-answers/devices grouped '()))
+           (names (map (lambda (package) (package-name package))
+                       (operating-system-packages os))))
+      (and (member "tmux" names)
+           (member "w3m" names))))
+
+  (test-end "software groups")
 
   (test-assert "an lvm target declares a volume group"
     (let* ((os (render-answers

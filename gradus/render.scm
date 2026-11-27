@@ -5,6 +5,7 @@
 
 (define-module (gradus render)
   #:use-module (gradus fs)
+  #:use-module (gradus package-groups)
   #:use-module (gradus selection)
   #:use-module (gnu)
   #:use-module (gnu bootloader)
@@ -51,9 +52,13 @@
   (or (assq-ref (assq-ref answers 'storage) 'swap-size) 0))
 
 (define (answer-packages answers)
-  "Extra packages the operator asked for, as package records."
-  (map specification->package
-       (or (assq-ref (assq-ref answers 'software) 'extra-packages) '())))
+  "The packages the operator asked for, as package records: the named
+packages plus the packages of every selected package group."
+  (let ((software (assq-ref answers 'software)))
+    (map specification->package
+         (append (concatenate (map package-group-packages
+                                   (or (assq-ref software 'package-groups) '())))
+                 (or (assq-ref software 'extra-packages) '())))))
 
 (define (boot-serial? boot)
   "True when GRUB is asked to talk on a serial line."

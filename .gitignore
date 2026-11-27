@@ -14,3 +14,4 @@ AGENTS.local.md
 # Editors and OS
 .DS_Store
 *~
+.build/
