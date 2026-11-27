@@ -99,7 +99,8 @@ options and missing values are usage errors."
    ((assoc-ref opts 'tui?)
     ;; Loaded on demand: the console front-end needs guile-ncurses, and the
     ;; other modes should not pay for it.
-    ((module-ref (resolve-module '(gradus tui)) 'run-tui)))
+    ((module-ref (resolve-module '(gradus tui)) 'run-tui)
+     (assoc-ref opts 'dry-run?)))
    ((assoc-ref opts 'version?)
     (format #t "gradus ~a (contract ~a)~%" %version %contract-version)
     0)

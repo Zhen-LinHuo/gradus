@@ -191,7 +191,8 @@ for, is LUKS1 because GRUB has to read the root file system at boot."
     (when swap-part
       (unless (zero? (run-command/stream "mkswap" "-L" "gradus-swap" swap-part))
         (error "mkswap failed" swap-part)))
-    (let ((root-device
+    (let ((fs (or (assq-ref storage 'filesystem) "ext4"))
+          (root-device
            (if encryption
                (let* ((name (or (assq-ref encryption 'name) "cryptroot"))
                       (mapper (string-append "/dev/mapper/" name))
@@ -210,8 +211,7 @@ for, is LUKS1 because GRUB has to read the root file system at boot."
                       (error "cryptsetup open failed" root-part))))
                  mapper)
                root-part)))
-      (let* ((fs (or (assq-ref storage 'filesystem) "ext4"))
-             (_ (unless (zero? (status:exit-val
+      (let* ((_ (unless (zero? (status:exit-val
                                 (system* "sh" "-c"
                                          (format #f "command -v mkfs.~a" fs))))
                   (error (format #f

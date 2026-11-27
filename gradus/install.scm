@@ -99,7 +99,55 @@ success; raise on the first failure."
     (unless (zero? (run-command/stream "guix" "system" "init" config-file root))
       (exit +exit-install+))
     (write-provenance root config-file "config")
+    (finish-target root)
     (log-line "==> [4/4] installed; declaration kept at ~a/etc/config.scm" root)))
+
+;; Shut the target down after the last write.  Leaving it mounted shuts the
+;; filesystem down uncleanly: on ext the journal stays unapplied, the free
+;; counts in the superblock go stale, and GRUB can no longer read the
+;; filesystem it is about to boot — it falls into rescue mode claiming
+;; normal.mod is missing while the file sits right there.
+;;
+;; How a filesystem settles is its own business, and each needs its own tool:
+;; ext2/3/4 get e2fsck (the failure above was observed on ext), btrfs and xfs
+;; are settled by the clean unmount alone — btrfs check is a recovery tool,
+;; not a routine one, and e2fsck cannot read either of them.  This dispatch is
+;; the temporary form of the filesystem capability table's `settle' field.
+(define (findmnt-fields point)
+  "Return the (source . type) filesystem mounted at POINT, or #f."
+  (let ((port (open-pipe* OPEN_READ "findmnt" "-n" "-o" "SOURCE,FSTYPE" point)))
+    (let ((line (read-line port)))
+      (close-pipe port)
+      (and (not (eof-object? line))
+           (let ((fields (string-tokenize (string-trim-both line))))
+             (and (= (length fields) 2)
+                  (cons (first fields) (second fields))))))))
+
+(define (finish-target root)
+  "Unmount ROOT and settle its filesystem.  Raise an installer error if the
+target stays mounted or an ext filesystem cannot be repaired; which tool
+settles which filesystem is the capability table's business (see
+docs/architecture.md §4), and ext is the one with an observed failure."
+  (unless (member root '("/" "//"))
+    (let ((mounted (findmnt-fields root)))
+      (log-line "==> unmounting ~a" root)
+      (system* "sh" "-c" (string-append "umount -R " root " 2>/dev/null || true"))
+      (when (zero? (status:exit-val (system* "mountpoint" "-q" root)))
+        (error "the target is still mounted; it cannot be shut down cleanly" root))
+      (let ((device (and mounted (car mounted)))
+            (type (and mounted (cdr mounted))))
+        (when (and device type (member type '("ext2" "ext3" "ext4"))
+                   (file-exists? device))
+          (log-line "==> checking ~a" device)
+          (let ((status (status:exit-val
+                         (system* "sh" "-c"
+                                  (string-append "e2fsck -fy " device
+                                                 " >/dev/null 2>&1")))))
+            ;; e2fsck exits with a bitmask: 1 means errors corrected, 4 means
+            ;; errors left uncorrected — the latter must not be reported as a
+            ;; successful install.
+            (when (and status (>= status 4))
+              (error "the filesystem check could not repair the target" device))))))))
 
 (define (substitute-urls answers)
   "The substitute URLs declared in ANSWERS, in the order written."
@@ -218,6 +266,7 @@ ANSWERS-FILE is where the answers are (or will be) recorded for provenance."
                                     (list declaration root))))
         (exit +exit-install+)))
     (write-provenance root declaration "answers")
+    (finish-target root)
     (log-line "installed; declaration kept at ~a/etc/config.scm" root)))
 
 (define (install-answers answers-file root)
