@@ -5,6 +5,7 @@
 
 (define-module (gradus render)
   #:use-module (gradus fs)
+  #:use-module (gradus selection)
   #:use-module (gnu)
   #:use-module (gnu bootloader)
   #:use-module (gnu packages linux)
@@ -293,44 +294,22 @@ A volume names its device as uuid:STRING (preferred) or label:STRING."
          (create-mount-point? #t))))
    (or (assq-ref storage 'data-volumes) '())))
 
-(define (substitute-service-list answers)
-  "The substitute services declared in the answers, or the empty list."
-  (or (assq-ref (assq-ref answers 'source) 'substitute-services) '()))
-
-(define (substitute-urls answers)
-  "The ordered substitute URLs from the answers."
-  (filter-map (lambda (service) (assq-ref service 'url))
-              (substitute-service-list answers)))
-
 (define (authorized-keys answers)
   "The signing-key files from the answers, as file-like objects.  A mirror of
 official store paths needs none; an independent builder does."
-  (filter-map (lambda (service)
-                (let ((key (assq-ref service 'key)))
-                  (and key (local-file key))))
-              (substitute-service-list answers)))
+  (map (lambda (path) (local-file path)) (selection-signing-keys answers)))
 
 (define (proxy-environment answers)
-  "The daemon environment entries for the proxy in the answers.  The Guix
-daemon honours http_proxy, https_proxy and no_proxy, and a local cache must be
-reachable directly, hence the explicit no_proxy list."
-  (let ((proxy (assq-ref answers 'proxy)))
-    (if proxy
-        (filter-map
-         (lambda (entry)
-           (let ((name (car entry)) (value (cdr entry)))
-             (and value (string-append name "=" value))))
-         `(("http_proxy" . ,(assq-ref proxy 'http))
-           ("https_proxy" . ,(assq-ref proxy 'https))
-           ("no_proxy" . ,(and=> (assq-ref proxy 'no-proxy)
-                                 (lambda (hosts)
-                                   (string-join hosts ","))))))
-        '())))
+  "The declaration's environment field: the proxy from the answers as the
+\"NAME=value\" strings a Guix configuration takes.  The model itself lives in
+`selection.scm'; this is only its presentation to Guix."
+  (map (lambda (pair) (string-append (car pair) "=" (cdr pair)))
+       (selection-proxy-environment answers)))
 
 (define (guix-service-for answers)
   "The guix-service-type modification that carries the answers' sources and
 proxy into the installed system."
-  (let ((urls (substitute-urls answers))
+  (let ((urls (selection-substitute-urls answers))
         (keys (authorized-keys answers))
         (environment (proxy-environment answers)))
     (lambda (config)

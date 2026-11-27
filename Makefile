@@ -6,6 +6,7 @@ check:
 	$(GUILE) -L . tests/script.scm
 	$(GUILE) -L . tests/answers.scm
 	$(GUILE) -L . tests/fs.scm
+	$(GUILE) -L . tests/selection.scm
 	$(GUILE) -L . tests/storage.scm
 	$(GUILE) -L . tests/wizard.scm
 	$(GUILE) -L . tests/wizard-set.scm
