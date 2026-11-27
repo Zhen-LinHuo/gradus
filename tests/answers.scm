@@ -200,6 +200,17 @@
       (lambda args #t))))
 
 (test-with-runner runner
+  (test-assert "an unknown filesystem is rejected"
+    (catch #t
+      (lambda ()
+        (validate-answers
+         (with-key 'storage '((mode . simple) (disk . "/dev/vda")
+                              (filesystem . "zfs"))
+                   base-minimal))
+        #f)
+      (lambda args #t))))
+
+(test-with-runner runner
   (test-assert "the contract's source and proxy shapes validate"
     (validate-answers
      (copy-tree

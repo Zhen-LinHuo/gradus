@@ -95,7 +95,7 @@ All five models are consumed by `install.scm` uniformly: changing the
 substitute list or the proxy restarts the live `guix-daemon` with the new
 settings as a fixed step of the install pipeline, not a special case.
 
-### 4. The filesystem capability table
+### 4. The filesystem capability table (`fs.scm`)
 
 A supported file system is one row of data, not a set of branches scattered
 across modules. The general handling is uniform: prepare creates the file
@@ -160,12 +160,12 @@ frontend inherits it.
 ## Implementation status
 
 Implemented today: the answer schema and validator, the wizard page model
-with its back semantics, typed conditions, the storage operations for the
-supported file systems, and the TUI. In the tree but data-driven only
-partially: substitutes, proxy and kernel arguments follow the selection
-models; the package-pattern table and the filesystem capability table are
-specified here and land with the refactor that consumes them. The web
-frontend is planned. Until a section is implemented, `docs/contract.md`
+with its back semantics, typed conditions, the filesystem capability table
+with its settling dispatch, the storage operations for the supported file
+systems, and the TUI. In the tree but data-driven only partially: substitutes,
+proxy and kernel arguments follow the selection models; the package-pattern
+table is specified here and lands with its own refactor. The web frontend is
+planned. Until a section is implemented, `docs/contract.md`
 section 2 and `docs/pages.md` remain the authority on what the software
 accepts today.
 

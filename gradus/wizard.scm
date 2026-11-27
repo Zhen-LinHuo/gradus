@@ -7,6 +7,7 @@
 (define-module (gradus wizard)
   #:use-module (ice-9 match)
   #:use-module (ice-9 optargs)
+  #:use-module (gradus fs)
   #:use-module (srfi srfi-1)
   #:export (%wizard-steps
             firmware-bootloader
@@ -75,7 +76,7 @@ so that a front-end cannot get the shape wrong."
                 (cons 'esp-size esp-size)
                 (cons 'swap-size swap-size)
                 (cons 'root-size root-size)
-                (cons 'filesystem (or filesystem "ext4")))
+                (cons 'filesystem (or filesystem (fs-default))))
           (if encryption (list (cons 'encryption encryption)) '())
           (if (eq? mode 'lvm)
               '((volume-group . "vg0")
