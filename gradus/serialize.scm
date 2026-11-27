@@ -23,7 +23,127 @@
   #:use-module (gradus selection)
   #:use-module (srfi srfi-1)
   #:export (serialize-answers
-            serialize-to-file))
+            serialize-to-file
+            declaration-summary))
+
+;; The summary reader walks the written form, not the answers: after an edit
+;; the file is the truth, and a display that keeps showing the answers would
+;; show a system nobody is about to install.
+
+(define (form-ref tree key)
+  "The first (KEY ...) form anywhere in TREE, or #f."
+  (cond ((pair? tree)
+         (if (and (pair? (car tree)) (eq? (caar tree) key))
+             (car tree)
+             (or (form-ref (car tree) key)
+                 (form-ref (cdr tree) key))))
+        (else #f)))
+
+(define (forms-ref tree key)
+  "Every (KEY ...) form anywhere in TREE, in document order."
+  (cond ((pair? tree)
+         (append (if (and (pair? (car tree)) (eq? (caar tree) key))
+                     (list (car tree))
+                     '())
+                 (forms-ref (car tree) key)
+                 (forms-ref (cdr tree) key)))
+        (else '())))
+
+(define (quoted-value form)
+  "The value of a (key 'value) form, unwrapping the quote."
+  (let ((value (cadr form)))
+    (if (and (pair? value) (eq? (car value) 'quote))
+        (cadr value)
+        value)))
+
+(define (declaration-summary path)
+  "Read the declaration at PATH and return its identity as an alist:
+host-name, timezone, locale, keyboard, bootloader, users, packages and
+substitute-urls.  Values are strings, except users, packages and
+substitute-urls, which are lists of strings.  A field the file does not
+carry is absent from the alist; a file that is not a declaration raises."
+  (let* ((forms (call-with-input-file path
+                   (lambda (port)
+                     (let loop ((acc (quote ())))
+                       (let ((form (read port)))
+                         (if (eof-object? form)
+                             (reverse acc)
+                             (loop (cons form acc))))))))
+         (form (find (lambda (candidate)
+                       (and (pair? candidate)
+                            (eq? (car candidate) (quote operating-system))))
+                     forms)))
+    (unless form
+      (error "not a system declaration" path))
+    (let* ((body (cdr form))
+           (top (lambda (key)
+                  (let ((cell (assq key body)))
+                    (and cell (pair? (cdr cell)) (cadr cell)))))
+           (account-names (lambda (key)
+                            (let ((cell (assq key body)))
+                              (if cell
+                                  (filter-map
+                                   (lambda (sub)
+                                     (let ((name (form-ref sub (quote name))))
+                                       (and name (cadr name))))
+                                   (cdr cell))
+                                  (quote ())))))
+           (keyboard-value
+            (let ((outer (form-ref body (quote keyboard-layout))))
+              (let ((inner (and outer (pair? (cdr outer)) (cadr outer))))
+                (cond ((and (pair? inner)
+                            (eq? (car inner) (quote xkb-layout))
+                            (pair? (cdr inner)))
+                       (cadr inner))
+                      ((and (pair? inner)
+                            (eq? (car inner) (quote keyboard-layout))
+                            (pair? (cdr inner))
+                            (pair? (cadr inner)))
+                       (let ((entry (assq (quote layout) (cadr inner))))
+                         (and entry (cdr entry))))
+                      (else #f)))))
+           (bootloader-name
+            (let ((value (top (quote bootloader))))
+              (cond ((symbol? value) value)
+                    ((pair? value)
+                     (let ((inner (form-ref value (quote bootloader))))
+                       (and inner (pair? (cdr inner)) (cadr inner)))))))
+           (packages-tree (let ((cell (assq (quote packages) body)))
+                            (and cell (cdr cell))))
+           (direct-packages
+            (filter-map (lambda (form)
+                          (and (pair? (cdr form)) (string? (cadr form))
+                               (cadr form)))
+                        (forms-ref packages-tree
+                                   (quote specification->package))))
+           (quoted-packages
+            (find (lambda (form)
+                    (and (pair? (cdr form))
+                         (pair? (cadr form))
+                         (every string? (cadr form))))
+                  (forms-ref packages-tree (quote quote))))
+           (urls (form-ref body (quote substitute-urls))))
+      (append
+       (let ((value (top (quote host-name))))
+         (if value (list (cons (quote host-name) value)) (quote ())))
+       (let ((value (top (quote timezone))))
+         (if value (list (cons (quote timezone) value)) (quote ())))
+       (let ((value (top (quote locale))))
+         (if value (list (cons (quote locale) value)) (quote ())))
+       (if keyboard-value
+           (list (cons (quote keyboard) keyboard-value))
+           (quote ()))
+       (if bootloader-name
+           (list (cons (quote bootloader) (symbol->string bootloader-name)))
+           (quote ()))
+       (list (cons (quote users) (account-names (quote users))))
+       (list (cons (quote packages)
+                   (append direct-packages
+                           (if quoted-packages
+                               (cadr quoted-packages)
+                               (quote ())))))
+       (list (cons (quote substitute-urls)
+                   (if urls (quoted-value urls) (quote ()))))))))
 
 (define (emit-user port user)
   (format port "    (user-account~%")
@@ -126,9 +246,7 @@ carry no `cryptomount' line and the machine could not boot."
        (let ((arguments (selection-kernel-arguments answers)))
          (when (pair? arguments)
            (format port "  (kernel-arguments '~s)~%" arguments)))
-       (let ((extra (or (assq-ref (assq-ref answers 'software)
-                                  'extra-packages)
-                        '())))
+       (let ((extra (answer-package-names answers)))
          (if (null? extra)
              (format port "  (packages %base-packages)~%")
              (format port "  (packages (append (map specification->package '~s) %base-packages))~%"

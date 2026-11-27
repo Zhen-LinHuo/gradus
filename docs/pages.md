@@ -148,18 +148,31 @@ states plainly.
 
 ### 8. Review
 
-The complete declaration, a diff against the profile it started from, and a
-"save to removable media" action. The operator may edit the text directly: the
-review page is the escape hatch for everything the other pages do not model.
+The review page shows what will be installed: host name, target, layout,
+bootloader, substitutes, packages, accounts and the system identity. Before
+the target is prepared the summary comes from the answers, and every
+"change …" entry jumps into the page that owns the value and returns here.
 
-Editing here does not bypass validation. The edited file is built before the
-installation starts.
+Choosing install asks for the erase consent — the default answer is no — and
+prepares the target. From that point the declaration file is the truth: the
+summary is read back from `config.scm`, so a text edit is what the page
+shows. "view declaration" scrolls the whole file; "edit declaration" hands
+it to an editor on the console. Changing a setting afterwards re-renders the
+file, which discards a hand edit — the page says so while one is present.
+A file that no longer reads as a system declaration is reported on the page
+and again at the install confirmation, and cannot be installed.
+
+The complete declaration may also be saved to removable media, and a diff
+against the profile it started from shows what the answers changed.
 
 ### 9. Install
 
-A summary of what will be written where, one final confirmation, then progress
-with a transcript. The installer reports the step it is in, and on failure the
-state of the target as it actually is, not as it was intended to be.
+A second, explicit confirmation — the default answer is no — names the disk
+one last time. From there the console belongs to the install log: the
+declaration is built and installed, with progress and a transcript. Because
+the build happens before the target is written, a declaration that does not
+build stops the install before it reaches the system. On failure the report
+is the state of the target as it actually is, not as it was intended to be.
 
 ## What is deliberately absent
 

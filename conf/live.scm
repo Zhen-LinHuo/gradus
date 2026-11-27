@@ -81,7 +81,7 @@ sleep 15
   (packages (append (map specification->package
                          '("parted" "cryptsetup" "dosfstools" "e2fsprogs"
                            "util-linux" "tmux" "guile" "guile-ncurses"
-                           "btrfs-progs" "xfsprogs"))
+                           "btrfs-progs" "xfsprogs" "nano"))
                     %base-packages))
   (services
    (append
