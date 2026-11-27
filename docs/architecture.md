@@ -166,9 +166,12 @@ Implemented today: the answer schema and validator, the wizard page model
 with its back semantics, typed conditions, the selection models for
 substitutes, proxy and kernel arguments, the filesystem capability table
 with its settling dispatch, the package-group manifests and their expansion
-into the package set, the review workflow with its inspect, edit and confirm
-gates, the storage operations for the supported file systems, and the TUI. Not yet consumed: channels, specified above; and the `profile`
-key, whose package contents arrive with a future desktop group. The web
+into the package set, the desktop environments as the official installer
+offers them (four as services, seven as package sets), the review workflow
+with its inspect, edit and confirm gates, the storage operations for the
+supported file systems, and the TUI. Not yet consumed: channels, specified
+above, and the `profile` key's own package set — the profile now follows
+the desktop page's selection but contributes no packages of its own. The web
 frontend is planned. Until a section is implemented, `docs/contract.md`
 section 2 and `docs/pages.md` remain the authority on what the software
 accepts today.

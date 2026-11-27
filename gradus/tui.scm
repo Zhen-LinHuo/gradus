@@ -787,6 +787,80 @@ groups, then the named packages.  Section labels are not selectable."
                        (else (loop groups packages cursor))))))
               (else (loop groups packages cursor)))))))
 
+;; The environments the official Guix installer offers, with what each one
+;; arrives as.  Keep in step with gradus/render.scm's environment-service
+;; and environment-packages.
+(define %environment-labels
+  '((gnome "GNOME" "system service")
+    (xfce "Xfce" "system service")
+    (mate "MATE" "system service")
+    (plasma "KDE Plasma" "system service")
+    (icewm "Icewm" "package set")
+    (openbox "Openbox" "package set")
+    (awesome "awesome" "package set")
+    (i3 "i3" "package set")
+    (ratpoison "ratpoison" "package set")
+    (exwm "Emacs EXWM" "package set")
+    (sway "Sway" "package set")))
+
+(define (%desktop-save wizard selected)
+  "Record the environments and let the profile follow them: none chosen is
+headless, anything chosen is a desktop.  Then move on like every other
+page's save does."
+  (wizard-next
+   (let ((wizard (wizard-set wizard 'desktop
+                             (list (cons 'environments selected)))))
+     (wizard-set wizard 'profile
+                 (if (null? selected) "headless" "desktop")))))
+
+(define (page-desktop win wizard)
+  "Multi-select the desktop environments, as the official installer offers
+them: four arrive as system services, the rest as package sets.  Choosing
+none keeps the headless profile."
+  (let* ((existing (let ((desktop (assq-ref (wizard-answers wizard) 'desktop)))
+                     (and desktop (assq-ref desktop 'environments))))
+         (entries %environment-labels))
+    (let loop ((selected (or existing '())) (cursor 0))
+      (clear win)
+      (box win (acs-vline) (acs-hline))
+      (put win 0 2 " Desktop environment ")
+      (put win 2 2 "Space or Enter marks; c accepts; Esc goes back.")
+      (put win 3 2 (if (null? selected)
+                       "(none selected = headless)"
+                       (format #f "selected: ~a"
+                               (string-join (map symbol->string selected)
+                                            " "))))
+      (let draw ((rows entries) (row 5) (i 0))
+        (when (pair? rows)
+          (let ((row-info (car rows)))
+            (put win row 2
+                 (format #f "~a [~a] ~a  ~a"
+                         (if (= i cursor) ">" " ")
+                         (if (member (first row-info) selected) "x" " ")
+                         (second row-info) (third row-info)))
+            (draw (cdr rows) (+ row 1) (+ i 1)))))
+      (put win 17 2
+           (format #f "~a Continue"
+                   (if (= cursor (length entries)) ">" "")))
+      (refresh win)
+      (let ((k (key-code (getch win))))
+        (cond ((= k KEY_UP) (loop selected (max 0 (- cursor 1))))
+              ((= k KEY_DOWN)
+               (loop selected (min (length entries) (+ cursor 1))))
+              ((= k 27) (request-back!))
+              ((= k 3) (quit!))
+              ((= k 99)                       ; c: accept
+               (%desktop-save wizard selected))
+              ((or (= k 10) (= k 13) (= k 32))
+               (if (= cursor (length entries))
+                   (%desktop-save wizard selected)
+                   (let ((id (first (list-ref entries cursor))))
+                     (loop (if (member id selected)
+                               (delete id selected)
+                               (cons id selected))
+                           cursor))))
+              (else (loop selected cursor)))))))
+
 (define (%interfaces)
   "Names of the network interfaces on this machine."
   (let ((dir (opendir "/sys/class/net")))
@@ -856,7 +930,8 @@ groups, then the named packages.  Section labels are not selectable."
 (define %review-labels
   '((host-name . "host name") (disk . "disk") (layout . "layout")
     (bootloader . "bootloader") (substitute-urls . "substitutes")
-    (packages . "packages") (accounts . "accounts") (system . "system")))
+    (packages . "packages") (accounts . "accounts")
+    (desktop . "desktop") (system . "system")))
 
 (define (call-without-screen win thunk)
   "Run THUNK with the terminal outside ncurses — the editor and the install
@@ -1103,6 +1178,7 @@ declaration is installed.  From here the console belongs to the install log."
   `((language . ,page-language)
     (locale . ,page-locale)
     (source . ,page-source)
+    (desktop . ,page-desktop)
     (storage . ,page-storage)
     (boot . ,page-boot)
     (software . ,page-software)

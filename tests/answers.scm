@@ -245,4 +245,52 @@
                        (https . "http://proxy.example.net:3128")
                        (no-proxy . ("localhost" "cache.example.net")))))))))
 
+
+(test-with-runner runner
+
+  (define (desktop-form profile environments)
+    `((schema-version . 1)
+      (profile . ,profile)
+      (storage (mode . simple) (disk . "/dev/vda"))
+      (users ((name . "tester") (group . "users")))
+      ,@(if environments
+            `((desktop (environments ,@environments)))
+            '())))
+
+  (test-assert "a desktop environment validates"
+    (validate-answers (desktop-form "desktop" '(gnome sway))))
+
+  (test-assert "an unknown desktop environment is rejected"
+    (catch #t
+      (lambda ()
+        (validate-answers (desktop-form "desktop" '(kde)))
+        #f)
+      (lambda args #t)))
+
+  (test-assert "headless with an environment is rejected"
+    (catch #t
+      (lambda ()
+        (validate-answers (desktop-form "headless" '(gnome)))
+        #f)
+      (lambda args #t)))
+
+  (test-assert "profile desktop without an environment is rejected"
+    (catch #t
+      (lambda ()
+        (validate-answers (desktop-form "desktop" '()))
+        #f)
+      (lambda args #t)))
+
+  (test-assert "custom accepts an environment"
+    (validate-answers (desktop-form "custom" '(i3))))
+
+  (test-assert "a misspelled desktop key is rejected"
+    (catch #t
+      (lambda ()
+        (validate-answers
+         (append (desktop-form "desktop" '())
+                 '((environmentsz . (gnome)))))
+        #f)
+      (lambda args #t))))
+
 (exit (if (zero? (test-runner-fail-count runner)) 0 1))

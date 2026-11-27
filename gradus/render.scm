@@ -21,7 +21,9 @@
   #:use-module (gnu system uuid)
   #:use-module (gnu services)
   #:use-module (gnu services base)
+  #:use-module (gnu services desktop)
   #:use-module (gnu services ssh)
+  #:use-module (gnu services xorg)
   #:use-module (gnu services networking)
   #:use-module (ice-9 string-fun)
   #:use-module (gradus answers)
@@ -32,6 +34,9 @@
             render-answers
             render-answers/devices
             answer-package-names
+            answer-desktop-package-names
+            answer-environments
+            desktop-environment?
             crypt-container-known?
             proxy-environment))
 
@@ -63,6 +68,60 @@ the packages of every selected package group."
 (define (answer-packages answers)
   "The packages the operator asked for, as package records."
   (map specification->package (answer-package-names answers)))
+
+;; The desktop environments the official Guix installer offers: four arrive
+;; as system services, the rest as package sets.  The identifiers are the
+;; answer form's; the names are the official ones.
+(define (answer-environments answers)
+  (let ((desktop (assq-ref answers 'desktop)))
+    (if desktop
+        (or (assq-ref desktop 'environments) '())
+        '())))
+
+(define (desktop-environment? answers)
+  (pair? (answer-environments answers)))
+
+(define (environment-service name)
+  "The service NAME installs, or #f for the environments that are package
+sets rather than services."
+  (case name
+    ((gnome) (service gnome-desktop-service-type))
+    ((xfce) (service xfce-desktop-service-type))
+    ((mate) (service mate-desktop-service-type))
+    ((plasma) (service plasma-desktop-service-type))
+    (else #f)))
+
+(define (environment-packages name)
+  "The packages NAME adds beyond its service, or '() for the services."
+  (case name
+    ((icewm) '("icewm"))
+    ((openbox) '("openbox"))
+    ((awesome) '("awesome"))
+    ((i3) '("i3-wm" "i3status" "dmenu" "st"))
+    ((ratpoison) '("ratpoison" "xterm"))
+    ((exwm) '("emacs" "emacs-exwm" "emacs-desktop-environment"))
+    ((sway) '("sway" "wmenu" "foot"))
+    (else '())))
+
+;; What the official installer adds to every desktop: fonts covering the
+;; world's scripts, chosen for all locales rather than per-locale.
+(define %desktop-font-packages
+  '("font-google-noto" "font-google-noto-emoji" "font-sarasa-gothic"))
+
+(define (answer-desktop-package-names answers)
+  "The package specifications a desktop adds, as names: the official font
+set plus the package sets of the environments that are not services."
+  (if (not (desktop-environment? answers))
+      '()
+      (append %desktop-font-packages
+              (append-map environment-packages
+                          (answer-environments answers)))))
+
+(define (answer-desktop-packages answers)
+  (map specification->package (answer-desktop-package-names answers)))
+
+(define (answer-keyboard answers)
+  (and=> (assq-ref answers 'keyboard) keyboard-layout))
 
 (define (boot-serial? boot)
   "True when GRUB is asked to talk on a serial line."
@@ -349,10 +408,11 @@ plain record: nothing is installed by this procedure."
       (timezone (or (assq-ref answers 'timezone) "UTC"))
       (locale (or (assq-ref answers 'locale) "en_US.utf8"))
       (kernel linux-libre)
-      (keyboard-layout
-       (and=> (assq-ref answers 'keyboard) (lambda (name) (keyboard-layout name))))
+      (keyboard-layout (answer-keyboard answers))
       (kernel-arguments (or (assq-ref boot 'extra-kernel-arguments) '()))
-      (packages (append (answer-packages answers) %base-packages))
+      (packages (append (answer-packages answers)
+                        (answer-desktop-packages answers)
+                        %base-packages))
       (bootloader (boot-record boot (assq-ref storage 'disk)))
       (mapped-devices
        (append (if (eq? mode 'lvm) (lvm-mapped-devices storage) '())
@@ -377,12 +437,25 @@ plain record: nothing is installed by this procedure."
                                       'grub-efi)))
                             (data-volume-file-systems storage)))
       (services
-       (append (list (service openssh-service-type)
-                     (service dhcpcd-service-type))
+       (append (list (service openssh-service-type))
+               ;; A desktop brings NetworkManager through %desktop-services;
+               ;; two network managers on one host is not a configuration.
+               (if (desktop-environment? answers)
+                   '()
+                   (list (service dhcpcd-service-type)))
                (if (assq-ref answers 'ntp)
                    (list (service ntp-service-type))
                    '())
-               (modify-services %base-services
+               (filter-map environment-service (answer-environments answers))
+               (if (and (desktop-environment? answers)
+                        (answer-keyboard answers))
+                   (list (set-xorg-configuration
+                          (xorg-configuration
+                           (keyboard-layout (answer-keyboard answers)))))
+                   '())
+               (modify-services (if (desktop-environment? answers)
+                                    %desktop-services
+                                    %base-services)
                  (guix-service-type config =>
                                     ((guix-service-for answers) config)))))
       ;; No `groups' field: the default (%base-groups) already carries root,
