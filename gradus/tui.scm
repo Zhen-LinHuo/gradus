@@ -12,6 +12,7 @@
   #:use-module (gradus package-groups)
   #:use-module (gradus install)
   #:use-module (gradus render)
+  #:use-module (gradus review)
   #:use-module (gradus storage)
   #:use-module (gnu system shadow)
   #:use-module (gradus utils)
@@ -832,105 +833,258 @@ packages.  Section labels are not selectable."
   "Jump to STEP, keeping the answers collected so far."
   (list (car wizard) step (caddr wizard)))
 
-(define (page-review win wizard)
-  ;; A summary a human can check, with a way back into each page that feeds it.
-  (let* ((a (wizard-answers wizard))
-         (storage (assq-ref a 'storage))
-         (source (assq-ref a 'source))
-         (services (assq-ref source 'substitute-services))
-         (boot (assq-ref a 'boot))
-         (users (assq-ref a 'users))
-         (software (assq-ref (assq-ref a 'software) 'extra-packages))
-         (rows (list (cons "host name  " (or (assq-ref a 'host-name) "gradus"))
-                     (cons "disk       " (format #f "~a (~a)"
-                                                 (assq-ref storage 'disk)
-                                                 (or (assq-ref storage 'filesystem) (fs-default))))
-                     (cons "layout     " (format #f "~a, swap ~a MiB"
-                                                 (assq-ref storage 'mode)
-                                                 (or (assq-ref storage 'swap-size) 0)))
-                     (cons "bootloader " (format #f "~a~a"
-                                                 (assq-ref boot 'bootloader)
-                                                 (if (assq-ref boot 'terminal-outputs)
-                                                     " (serial)" "")))
-                     (cons "substitutes" (if (pair? services)
-                                             (assq-ref (car services) 'url)
-                                             "official"))
-                     (cons "packages   " (if (pair? software)
-                                             (string-join software " ")
-                                             "(none)"))
-                     (cons "accounts   " (string-join
-                                          (map (lambda (u) (assq-ref u 'name)) users)
-                                          ", "))
-                     (cons "system     " (format #f "~a, ~a, keyboard ~a, NTP ~a"
-                                                 (or (assq-ref a 'timezone) "UTC")
-                                                 (or (assq-ref a 'locale) "en_US.utf8")
-                                                 (or (assq-ref a 'keyboard) "us")
-                                                 (if (assq-ref a 'ntp) "on" "off"))))))
+;; The review workflow's state lives in core (gradus review); this front end
+;; holds the current state, renders it and sends events back — a web front
+;; end will drive the same record.
+(define %review-root "/mnt/target")
+(define %review-answers-file "/tmp/gradus-answers.scm")
+(define %review-state #f)
+
+(define %review-labels
+  '((host-name . "host name") (disk . "disk") (layout . "layout")
+    (bootloader . "bootloader") (substitute-urls . "substitutes")
+    (packages . "packages") (accounts . "accounts") (system . "system")))
+
+(define (call-without-screen win thunk)
+  "Run THUNK with the terminal outside ncurses — the editor and the install
+log own the console — then bring the screen back by redrawing WIN."
+  (endwin)
+  (let ((result (thunk)))
+    (clear win)
+    (refresh win)
+    result))
+
+(define (%format-review-value key value)
+  (cond ((not (list? value)) value)
+        ((null? value) (if (eq? key 'substitute-urls) "official" "(none)"))
+        ((eq? key 'packages)
+         (if (<= (length value) 8)
+             (string-join value " ")
+             (format #f "~a (~a ... +~a)" (length value)
+                     (string-join (take value 8) " ")
+                     (- (length value) 8))))
+        (else (string-join value " "))))
+
+(define (%review-rows state answers)
+  (map (lambda (pair)
+         (cons (assq-ref %review-labels (car pair))
+               (%format-review-value (car pair) (cdr pair))))
+       (review-summary state answers)))
+
+(define (%confirm-erase win answers)
+  "Ask for the consent the prepare step is about to act on.  The default is
+'no': consent is a deliberate keypress, never the resting position."
+  (let* ((storage (assq-ref answers 'storage))
+         (disk (assq-ref storage 'disk)))
     (clear win)
     (box win (acs-vline) (acs-hline))
-    (put win 0 2 " Review ")
-    (let loop ((items rows) (row 3))
+    (put win 0 2 " Erase ")
+    (put win 2 2 (format #f "Preparing the target writes to ~a." disk))
+    (put win 3 2 "Every partition and every file on it will be lost.")
+    (let ((index (choose win 5 "Continue?"
+                         (list "no, back to review"
+                               (format #f "yes, erase ~a" disk))
+                         0)))
+      (= index 1))))
+
+(define (%begin-prepare win wizard answers)
+  "Gate one: consent, then prepare and render.  Returns the wizard to stay
+on, or 'quit' when validation mode has printed its plan."
+  (if (not (%confirm-erase win answers))
+      wizard
+      (if (%dry-run?)
+          (begin
+            (endwin)
+            (validate-answers answers)
+            (display (plan->string
+                      (configuration-plan (render-answers answers))))
+            (format #t "~%dry run: nothing was written~%")
+            'quit)
+          (begin
+            (call-with-output-file %review-answers-file
+              (lambda (port)
+                (format port ";; written by the gradus installer~%~s~%"
+                        answers)))
+            (let ((outcome
+                   (call-without-screen
+                    win
+                    (lambda ()
+                      (catch #t
+                        (lambda ()
+                          (set! %review-state
+                                (review-prepare answers %review-answers-file
+                                                %review-root))
+                          #t)
+                        (lambda (key . args)
+                          (list 'error (format #f "~a" args))))))))
+              (if (eq? outcome #t)
+                  wizard
+                  (begin
+                    (clear win)
+                    (box win (acs-vline) (acs-hline))
+                    (put win 0 2 " Prepare failed ")
+                    (put win 2 2 (format #f "~a"
+                                         (if (pair? outcome)
+                                             (cadr outcome)
+                                             outcome)))
+                    (put win 4 2 "Press any key to return to the review.")
+                    (refresh win)
+                    (key-code (getch win))
+                    wizard)))))))
+
+(define (page-declaration-view win wizard)
+  "Scrollable text of the declaration: what is on disk, not a summary of it."
+  (let ((text (review-declaration-text %review-state)))
+    (if (not text)
+        (begin
+          (clear win)
+          (box win (acs-vline) (acs-hline))
+          (put win 0 2 " Declaration ")
+          (put win 2 2 "No declaration has been prepared.")
+          (put win 4 2 "Press any key to return to the review.")
+          (refresh win)
+          (key-code (getch win))
+          wizard)
+        (let ((lines (string-split text #\newline)))
+          (let loop ((offset 0))
+            (let ((at (min offset (max 0 (- (length lines) 1)))))
+              (clear win)
+              (box win (acs-vline) (acs-hline))
+              (put win 0 2 " Declaration ")
+              (let draw ((rest (list-tail lines at)) (row 2))
+                (when (and (pair? rest) (<= row 20))
+                  (put win row 2 (car rest))
+                  (draw (cdr rest) (+ row 1))))
+              (put win 22 2 "Up/Down, PgUp/PgDn scroll; Esc back.")
+              (refresh win)
+              (let ((k (key-code (getch win))))
+                (cond ((= k KEY_UP) (loop (max 0 (- at 1))))
+                      ((= k KEY_DOWN) (loop (+ at 1)))
+                      ((or (= k KEY_PPAGE) (= k 107)) (loop (max 0 (- at 10))))
+                      ((or (= k KEY_NPAGE) (= k 106)) (loop (+ at 10)))
+                      ((or (= k 27) (= k 113)) wizard) ; Esc or q
+                      ((= k 3) (quit!))
+                      (else (loop at))))))))))
+
+(define (%edit-declaration win)
+  "Hand the declaration to nano; on the way back the review re-reads the
+file, so whatever changed — or broke — is what the next draw shows."
+  (let ((path (review-declaration %review-state)))
+    (when (and path (file-exists? path))
+      (if (not (zero? (status:exit-val
+                       (system* "sh" "-c"
+                                "command -v nano >/dev/null 2>&1"))))
+          (begin
+            (clear win)
+            (box win (acs-vline) (acs-hline))
+            (put win 0 2 " Editor ")
+            (put win 2 2 "nano is not available on this system.")
+            (put win 4 2 "Press any key to return to the review.")
+            (refresh win)
+            (key-code (getch win)))
+          (call-without-screen win (lambda () (system* "nano" path)))))))
+
+(define (page-review win wizard)
+  ;; A summary a human can check, with a way back into each page that feeds
+  ;; it.  Before the target is prepared the summary comes from the answers;
+  ;; after it, the declaration file is the truth, so a hand edit is what the
+  ;; page shows and a settings change re-renders the file on the way back.
+  (let* ((answers (with-defaults (wizard-answers wizard)))
+         (state (review-sync
+                 (or %review-state
+                     (review-initial %review-root %review-answers-file))
+                 answers))
+         (_ (set! %review-state state))
+         (prepared? (review-prepared? state))
+         (problem (and prepared? (review-check state)))
+         (edited? (and prepared? (review-hand-edited? state)))
+         (rows (%review-rows state answers)))
+    (clear win)
+    (box win (acs-vline) (acs-hline))
+    (put win 0 2
+         (format #f " Review ~a"
+                 (cond (problem "— declaration has errors")
+                       (edited? "— edited by hand")
+                       (else ""))))
+    (let draw ((items rows) (row 3))
       (unless (null? items)
         (put win row 2 (format #f "~a: ~a" (car (car items)) (cdr (car items))))
-        (loop (cdr items) (+ row 1))))
-    (let ((choice (choose win (+ 5 (length rows)) "What next?"
-                          (list "install"
-                                "change localisation"
-                                "change storage"
-                                "change boot loader"
-                                "change software"
-                                "change network"
-                                "change users")
-                          0)))
-      (case choice
-        ;; the answers schema has no `reviewed' key
-        ((0) (wizard-next wizard))
-        ((1) (wizard-goto wizard 'locale))
-        ((2) (wizard-goto wizard 'storage))
-        ((3) (wizard-goto wizard 'boot))
-        ((4) (wizard-goto wizard 'software))
-        ((5) (wizard-goto wizard 'network))
-        (else (wizard-goto wizard 'users))))))
+        (draw (cdr items) (+ row 1))))
+    (let* ((menu (if prepared?
+                     (list "install" "view declaration" "edit declaration"
+                           "change localisation" "change storage"
+                           "change boot loader" "change software"
+                           "change network" "change users")
+                     (list "install" "change localisation" "change storage"
+                           "change boot loader" "change software"
+                           "change network" "change users")))
+           ;; The hint line sits at y + 2 + (length menu); keep it inside
+           ;; the box whatever the menu's length is.
+           (choice (choose win (- 20 (length menu)) "What next?" menu 0))
+           (jumps (list 'locale 'storage 'boot 'software 'network 'users))
+           (jump-offset (if prepared? 3 1)))
+      (cond
+       ((= choice 0)
+        (if prepared?
+            (wizard-next wizard)
+            (%begin-prepare win wizard answers)))
+       ((and prepared? (= choice 1))
+        (page-declaration-view win wizard)
+        wizard)
+       ((and prepared? (= choice 2))
+        (%edit-declaration win)
+        wizard)
+       (else
+        (wizard-goto wizard (list-ref jumps (- choice jump-offset))))))))
 
 ;; Set by run-tui: when true, the final wizard step checks and prints the
 ;; plan without writing anything (contract §2, validation mode).
 (define %dry-run? (make-parameter #f))
 
 (define (page-install win wizard)
-  (clear win)
-  (box win (acs-vline) (acs-hline))
-  (put win 0 2 " Installing ")
-  (put win 2 2 "The installer is about to:")
-  (put win 4 2 "  [1/4] check the declaration")
-  (put win 5 2 "  [2/4] mount the target")
-  (put win 6 2 "  [3/4] install the system")
-  (put win 7 2 "  [4/4] install the boot loader")
-  (put win 9 2 "Press Enter to begin; the log follows on this console.")
-  (refresh win)
-  (getch win)
-  (let ((answers (with-defaults (wizard-answers wizard)))
-        (answers-file "/tmp/gradus-answers.scm")
-        (root "/mnt/target"))
-    (endwin)
-    (call-with-output-file answers-file
-      (lambda (port)
-        (format port ";; written by the gradus installer~%~s~%" answers)))
-    (if (%dry-run?)
-        ;; Validation mode: every check, the rendered plan, nothing written.
-        (begin
-          (validate-answers answers)
-          (display (plan->string
-                    (configuration-plan (render-answers answers))))
-          (format #t "~%dry run: nothing was written~%")
-          0)
-        (begin
-          (catch #t
-            (lambda ()
-              (install-answers/alist answers answers-file root)
-              (format #t "~a~%  ~a/etc/config.scm~%" (tr wizard 'done) root))
-            (lambda (key . args)
-              (format (current-error-port) "install failed: ~a ~s~%" key args)))
-          0))))
+  "The commit: an explicit second confirmation, then the prepared
+declaration is installed.  From here the console belongs to the install log."
+  (let* ((answers (with-defaults (wizard-answers wizard)))
+         (storage (assq-ref answers 'storage))
+         (disk (assq-ref storage 'disk))
+         (state %review-state)
+         (problem (and (review-prepared? state) (review-check state)))
+         (edited? (and (review-prepared? state) (review-hand-edited? state))))
+    (clear win)
+    (box win (acs-vline) (acs-hline))
+    (put win 0 2 " Install ")
+    (put win 2 2 (format #f "The declaration for ~a is ready." disk))
+    (when edited?
+      (put win 3 2 "It carries your hand edits."))
+    (let ((index (choose win 5 "Install the system now?"
+                         (list "no, back to review"
+                               (format #f "yes, install to ~a" disk))
+                         0)))
+      (if (= index 0)
+          (wizard-back wizard)
+          (if problem
+              (begin
+                (clear win)
+                (box win (acs-vline) (acs-hline))
+                (put win 0 2 " Declaration problem ")
+                (put win 2 2 (format #f "~a" problem))
+                (put win 4 2 "Fix it with edit declaration; returning to")
+                (put win 5 2 "the review.")
+                (put win 7 2 "Press any key.")
+                (refresh win)
+                (key-code (getch win))
+                (wizard-back wizard))
+              (begin
+                (endwin)
+                (catch #t
+                  (lambda () (review-install state))
+                  (lambda (key . args)
+                    (format (current-error-port) "install failed: ~a ~s~%"
+                            key args)
+                    (exit 1)))
+                (format #t "~a~%  ~a/etc/config.scm~%"
+                        (tr wizard 'done) %review-root)
+                'quit))))))
 
 (define %pages
   `((language . ,page-language)

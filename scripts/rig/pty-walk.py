@@ -34,7 +34,7 @@ STEPS = [
     (["User name"], "\r"),                    # users: accept the default name
     (["password"], "pw123456\r" * 4),         # user x2, root x2
     (["What next?"], "\r"),                   # review: install
-    (["Press Enter to begin"], "\r"),         # install: begin
+    (["Every partition"], "2\r"),             # gate 1: yes, erase (default is no)
     (["dry run: nothing was written"], None),  # validation mode did its work
 ]
 

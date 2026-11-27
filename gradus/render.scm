@@ -31,6 +31,7 @@
             %esp-label
             render-answers
             render-answers/devices
+            answer-package-names
             crypt-container-known?
             proxy-environment))
 
@@ -51,14 +52,17 @@
 (define (swap-size answers)
   (or (assq-ref (assq-ref answers 'storage) 'swap-size) 0))
 
-(define (answer-packages answers)
-  "The packages the operator asked for, as package records: the named
-packages plus the packages of every selected package group."
+(define (answer-package-names answers)
+  "The package specifications the operator asked for: the named packages plus
+the packages of every selected package group."
   (let ((software (assq-ref answers 'software)))
-    (map specification->package
-         (append (concatenate (map package-group-packages
-                                   (or (assq-ref software 'package-groups) '())))
-                 (or (assq-ref software 'extra-packages) '())))))
+    (append (concatenate (map package-group-packages
+                              (or (assq-ref software 'package-groups) '())))
+            (or (assq-ref software 'extra-packages) '()))))
+
+(define (answer-packages answers)
+  "The packages the operator asked for, as package records."
+  (map specification->package (answer-package-names answers)))
 
 (define (boot-serial? boot)
   "True when GRUB is asked to talk on a serial line."

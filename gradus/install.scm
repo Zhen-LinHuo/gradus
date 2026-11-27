@@ -24,6 +24,8 @@
             install-config
             install-answers
             install-answers/alist
+            prepare-answers/alist
+            install-declaration!
             apply-proxy-environment
             restart-guix-daemon))
 
@@ -214,9 +216,11 @@ operator does not own alone."
       (log-line "the daemon socket did not appear; restore it with 'herd start guix-daemon'")
       (exit +exit-install+))))
 
-(define (install-answers/alist answers answers-file root)
-  "Prepare the target from the ANSWERS alist, render, mount and install.
-ANSWERS-FILE is where the answers are (or will be) recorded for provenance."
+(define (prepare-answers/alist answers answers-file root)
+  "Validate ANSWERS, prepare and mount the target beneath ROOT and write the
+declaration it renders.  ANSWERS-FILE is where the answers are recorded for
+provenance.  Return two values: the declaration path and the device map the
+prepare step read back, which a later re-render needs."
   (let* ((answers (validate-answers answers))
          (device-map (prepare-target answers))
          (os (render-answers/devices answers device-map))
@@ -231,21 +235,36 @@ ANSWERS-FILE is where the answers are (or will be) recorded for provenance."
         (log-line "cannot prepare the target: ~a" args)
         (exit +exit-target+)))
     (authorize-declared-keys answers)
-    (log-line "installing")
-    (let* ((urls (selection-substitute-urls answers))
-           (options (if (null? urls) '()
-                        (list (string-append "--substitute-urls="
-                                             (string-join urls " "))))))
-      (when (pair? urls)
-        (log-line "substitutes: ~a" (string-join urls " ")))
-      (unless (zero? (apply run-command/stream
-                            (append (list "guix" "system" "init")
-                                    options
-                                    (list declaration root))))
-        (exit +exit-install+)))
-    (write-provenance root declaration "answers")
-    (finish-target root)
-    (log-line "installed; declaration kept at ~a/etc/config.scm" root)))
+    (values declaration device-map)))
+
+(define (install-declaration! answers answers-file root declaration)
+  "Install DECLARATION beneath ROOT with 'guix system init' and record the
+result.  The declaration is built before the target is written, so a
+declaration that does not build stops the install before it reaches the
+system."
+  (log-line "installing")
+  (let* ((urls (selection-substitute-urls answers))
+         (options (if (null? urls) '()
+                      (list (string-append "--substitute-urls="
+                                           (string-join urls " "))))))
+    (when (pair? urls)
+      (log-line "substitutes: ~a" (string-join urls " ")))
+    (unless (zero? (apply run-command/stream
+                          (append (list "guix" "system" "init")
+                                  options
+                                  (list declaration root))))
+      (exit +exit-install+)))
+  (write-provenance root declaration "answers")
+  (finish-target root)
+  (log-line "installed; declaration kept at ~a/etc/config.scm" root))
+
+(define (install-answers/alist answers answers-file root)
+  "Prepare the target from the ANSWERS alist, render, mount and install.
+ANSWERS-FILE is where the answers are (or will be) recorded for provenance."
+  (call-with-values
+      (lambda () (prepare-answers/alist answers answers-file root))
+    (lambda (declaration device-map)
+      (install-declaration! answers answers-file root declaration))))
 
 (define (install-answers answers-file root)
   "Read ANSWERS-FILE and install the system it describes beneath ROOT."
