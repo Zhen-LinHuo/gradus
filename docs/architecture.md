@@ -70,26 +70,27 @@ never a frontend feature:
 | channels | ordered list of `(name, url, commit)` | order is authority order; the official channel is always available and never hidden |
 | substitutes | ordered list of `(url, kind, key)` | order is preference order — the first reachable server wins; adding a server places it first |
 | proxy | `(http, https, no_proxy)` | applied to the live daemon for the install and persisted to the target |
-| package patterns | curated groups, see below | the fast path for a sensible base system |
+| package groups | curated Guix manifests, see below | the fast path for a sensible base system |
 | kernel arguments | preset + free list | offered as keep-default / none / edit |
 
-**Package patterns** follow the idea the openSUSE installer calls *patterns*: a
-named group of packages that yields a working set of functionality —
-"remote access", "monitoring tools", "network utilities" — instead of asking
-the operator to know package names. Each pattern is a core data row:
-
-```
-(pattern (name 'remote-access)
-         (description "SSH and terminal multiplexing")
-         (packages (list "openssh" "tmux" "rsync")))
-```
+**Package groups** follow the idea the openSUSE installer calls *patterns*: a named
+group of packages that yields a working set of functionality — "internet
+gateway", "file server", "console tools" — instead of asking the operator to
+know package names. Each package group is a Guix manifest file in `manifests/package-groups`,
+identified by its file name, so the package manager consumes it directly
+(`guix package -m <file>`) and this installer only reads it: there is no
+selection format of the installer's own. The files carry the openSUSE
+Tumbleweed pattern of the same name, with packages that have no same-named
+Guix package removed and none substituted; `manifests/README` records that
+derivation and every pattern dropped whole.
 
 The installed set is `%base-packages` + the chosen profile + the selected
-patterns + explicitly named packages, expanded by `render.scm` into one
-manifest. Patterns are curated in this repository and versioned with it;
-resolving them dynamically against a channel is a possible later extension.
-Per-user software after installation is the domain of `guix home` and out of
-scope here.
+package groups + explicitly named packages, expanded by `render.scm` into one
+manifest. The package groups are curated in this repository and versioned with it;
+delivering them from a channel instead is a possible later extension, and a
+package group arriving as a metapackage in a channel is the variant that would make
+the selection visible in the installed closure itself. Per-user software
+after installation is the domain of `guix home` and out of scope here.
 
 All five models are consumed by `install.scm` uniformly: changing the
 substitute list or the proxy restarts the live `guix-daemon` with the new
@@ -162,10 +163,11 @@ frontend inherits it.
 Implemented today: the answer schema and validator, the wizard page model
 with its back semantics, typed conditions, the selection models for
 substitutes, proxy and kernel arguments, the filesystem capability table
-with its settling dispatch, the storage operations for the supported file
-systems, and the TUI. Not yet consumed: channels, specified above; and the
-package-pattern table, which lands with its own refactor. The web frontend is
-planned. Until a section is implemented, `docs/contract.md`
+with its settling dispatch, the package-group manifests and their expansion
+into the package set, the storage operations for the supported file systems,
+and the TUI. Not yet consumed: channels, specified above; and the `profile`
+key, whose package contents arrive with a future desktop group. The web
+frontend is planned. Until a section is implemented, `docs/contract.md`
 section 2 and `docs/pages.md` remain the authority on what the software
 accepts today.
 
