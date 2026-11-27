@@ -182,6 +182,24 @@ Every release candidate is installed at least once per row.
 Firmware and storage are the axes that break installers; they are never skipped
 for a release, even a documentation-only one.
 
+### Recorded runs
+
+| Date | Cells | Result |
+|:--|:--|:--|
+| 2026-11-27 | ext4/BIOS, btrfs/BIOS, xfs/BIOS — serial console, unattended answers | `install OK` and `boot OK` for all three; the settle step ran as its row commands: `e2fsck` on ext4, clean unmount only on btrfs and xfs |
+
+The command is `make vm-install FS=<fs> FW=bios` on the build host; the run
+log and the serial transcripts are the evidence, and the procedure is
+`tests/vm/README.md`.
+
+Bugs this campaign caught before the cells passed: `fs` bound inside a `let*`
+and read outside it; the answers file naming the substitute key `substitutes`
+while every reader expects `substitute-services`, which left the daemon on
+its default sources; the installed system never told to print on the serial
+console, so the boot assertion could never see a login; the success path
+never unmounting the target, leaving an ext file system GRUB could not read;
+and the settle step running e2fsck on a btrfs root.
+
 ## T9 — Encrypted root boots
 
 **Question:** after an encrypted install, does the machine actually come up?
