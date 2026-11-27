@@ -9,6 +9,7 @@
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-13)
   #:export (package-group-ids
+            package-group-tree
             package-group-description
             package-group-packages))
 
@@ -28,9 +29,6 @@ from a checkout, and --answers from wherever the operator stands."
       (error "cannot locate the group manifests: this module has no source file"))
     (string-append (dirname (dirname here)) "/manifests/package-groups")))
 
-(define (package-group-file id)
-  (string-append (groups-directory) "/" (symbol->string id) ".scm"))
-
 (define (directory-entries directory)
   (let ((port (opendir directory)))
     (let loop ((acc '()))
@@ -39,14 +37,40 @@ from a checkout, and --answers from wherever the operator stands."
             (begin (closedir port) (reverse acc))
             (loop (cons entry acc)))))))
 
+(define (package-group-tree)
+  "The groups as ((category . (id ...)) ...): one entry per subdirectory of
+the manifest directory, categories in file-name order and identifiers sorted
+within a category.  The directory is the category; the identifier stays flat."
+  (let* ((root (groups-directory))
+         (categories (filter (lambda (entry)
+                               (and (not (string-prefix? "." entry))
+                                    (file-is-directory?
+                                     (string-append root "/" entry))))
+                             (directory-entries root))))
+    (map (lambda (category)
+           (let* ((dir (string-append root "/" category))
+                  (files (filter (lambda (entry)
+                                   (string-suffix? ".scm" entry))
+                                 (directory-entries dir))))
+             (cons category
+                   (map (lambda (file)
+                          (string->symbol (string-drop-right file 4)))
+                        (sort files string<?)))))
+         (sort categories string<?))))
+
 (define (package-group-ids)
-  "The group identifiers, as symbols, in file-name order."
-  (let* ((entries (directory-entries (groups-directory)))
-         (files (filter (lambda (entry) (string-suffix? ".scm" entry))
-                        entries))
-         (names (map (lambda (file) (string-drop-right file 4))
-                     (sort files string<?))))
-    (map string->symbol names)))
+  "Every group identifier, as symbols, across all categories."
+  (append-map cdr (package-group-tree)))
+
+(define (package-group-file id)
+  "The manifest file of group ID, found through the category tree."
+  (let loop ((tree (package-group-tree)))
+    (cond ((null? tree)
+           (error "unknown package group" id))
+          ((memq id (cdar tree))
+           (string-append (groups-directory) "/" (caar tree) "/"
+                          (symbol->string id) ".scm"))
+          (else (loop (cdr tree))))))
 
 (define (read-package-group id)
   "The manifest form of group ID: (specifications->manifest (list ...))."
