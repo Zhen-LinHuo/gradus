@@ -135,6 +135,9 @@ policies, and the renderer fills in everything else from the selected profile.
    (groups . ("wheel" "audio" "video"))
    (ssh-keys . ("ssh-ed25519 AAAA..."))))
 
+ (desktop
+  (environments . (gnome sway)))     ; system services and package sets
+
  (software
   (package-groups . ())
   (extra-packages . ())
@@ -150,6 +153,12 @@ Rules:
   its own with `guix package -m <file>`; an unknown name is an error, and the
   group's packages are added to the named packages in
   `software.extra-packages`.
+- `desktop.environments` names the environments the official Guix installer
+  offers: `gnome`, `xfce`, `mate` and `plasma` arrive as system services,
+  `icewm`, `openbox`, `awesome`, `i3`, `ratpoison`, `exwm` and `sway` as
+  package sets. An unknown name is an error, and so is an unknown key inside
+  `desktop`. The profile must agree with the choice: environments require
+  `desktop` or `custom`, and `desktop` without an environment is an error.
 - Every key in the example above is optional except `schema-version`, `profile`,
   `storage` and `users`; omitted keys take documented defaults.
 - `erase` defaults to `#f`. A data volume is never formatted implicitly; each

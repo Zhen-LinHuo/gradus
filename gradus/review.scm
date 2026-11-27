@@ -135,6 +135,18 @@ accounts, system."
      (let ((names (or (file-ref 'users)
                       (map (lambda (u) (assq-ref u 'name)) (or users '())))))
        (list (cons 'accounts names)))
+     (list (cons 'desktop
+                 (let ((envs (or (file-ref 'environments)
+                                 (let ((desktop (assq-ref answers 'desktop)))
+                                   (and (list? desktop)
+                                        (every pair? desktop)
+                                        (let ((cell (assq 'environments
+                                                          desktop)))
+                                          (and cell (cdr cell)))))
+                                 '())))
+                   (if (null? envs)
+                       "headless"
+                       (string-join (map symbol->string envs) " ")))))
      (list (cons 'system
                  (format #f "~a, ~a, keyboard ~a, ntp ~a"
                          (or (file-ref 'timezone) (assq-ref answers 'timezone) "?")

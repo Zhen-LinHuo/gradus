@@ -147,4 +147,22 @@
     (list (bootloader-configuration-serial-unit config)
           (bootloader-configuration-serial-speed config))))
 
+
+  (test-equal "a headless declaration reports no environments"
+    '()
+    (let ((path (string-append (or (getenv "TMPDIR") "/tmp")
+                               "/gradus-no-desktop.scm")))
+      (serialize-to-file path answers device-map)
+      (assq-ref (declaration-summary path) 'environments)))
+
+  (test-equal "the declaration reports the environments it installs"
+    '(gnome sway)
+    (let ((path (string-append (or (getenv "TMPDIR") "/tmp")
+                               "/gradus-desktop.scm")))
+      (serialize-to-file path
+                         (acons 'desktop '((environments . (gnome sway)))
+                                answers)
+                         device-map)
+      (assq-ref (declaration-summary path) 'environments)))
+
 (exit (if (zero? (test-runner-fail-count runner)) 0 1))

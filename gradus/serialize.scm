@@ -143,7 +143,48 @@ carry is absent from the alist; a file that is not a declaration raises."
                                (cadr quoted-packages)
                                (quote ())))))
        (list (cons (quote substitute-urls)
-                   (if urls (quoted-value urls) (quote ()))))))))
+                   (if urls (quoted-value urls) (quote ()))))
+       (list (cons (quote environments) (declaration-environments body)))))))
+
+
+;; The environments the declaration installs: the four service types by
+;; their service call, the package sets by each set's marker package.
+(define %service-environments
+  '((gnome-desktop-service-type . gnome)
+    (xfce-desktop-service-type . xfce)
+    (mate-desktop-service-type . mate)
+    (plasma-desktop-service-type . plasma)))
+
+(define %package-set-markers
+  '(("icewm" . icewm) ("openbox" . openbox) ("awesome" . awesome)
+    ("i3-wm" . i3) ("ratpoison" . ratpoison)
+    ("emacs-exwm" . exwm) ("sway" . sway)))
+
+(define (declaration-environments body)
+  "The desktop environments installed by the declaration BODY, as symbols."
+  (let* ((services (form-ref body 'services))
+         (from-services
+          (filter-map
+           (lambda (call)
+             (and (pair? call)
+                  (eq? (car call) 'service)
+                  (pair? (cdr call))
+                  (assq-ref %service-environments (cadr call))))
+           (forms-ref services 'service)))
+         (names (let* ((cell (assq 'packages body))
+                       (tree (and cell (cdr cell))))
+                  (let ((quoted (find (lambda (form)
+                                        (and (pair? (cdr form))
+                                             (pair? (cadr form))
+                                             (every string? (cadr form))))
+                                      (forms-ref tree 'quote))))
+                    (if quoted (cadr quoted) '()))))
+         (from-packages
+          (filter-map
+           (lambda (marker)
+             (and (member (car marker) names) (cdr marker)))
+           %package-set-markers)))
+    (delete-duplicates (append from-services from-packages))))
 
 (define (emit-user port user)
   (format port "    (user-account~%")
@@ -180,19 +221,42 @@ carry is absent from the alist; a file that is not a declaration raises."
     (format port "  (services~%")
     (format port "   (append~%")
     (let* ((network (or (assq-ref answers 'network) '()))
-           (static? (eq? (assq-ref network 'management) 'static)))
+           (static? (eq? (assq-ref network 'management) 'static))
+           (desktop? (desktop-environment? answers))
+           (keyboard (assq-ref answers 'keyboard)))
       (format port "    (list (service openssh-service-type)~%")
-      (if static?
-          (format port "          (service static-networking-service-type~%           (list (static-networking~%                   (addresses (list (network-address~%                                 (device ~s)~%                                 (value ~s))))~%                   (routes (list (network-route~%                                  (destination \"default\")~%                                  (gateway ~s))))~%                   (name-servers '~s))))~%"
-                  (assq-ref network 'interface)
-                  (assq-ref network 'address)
-                  (assq-ref network 'gateway)
-                  (or (assq-ref network 'name-servers) '()))
-          (format port "          (service dhcpcd-service-type)~%")))
-    (when (assq-ref answers 'ntp)
-      (format port "          (service ntp-service-type)~%"))
+      ;; A desktop leaves networking to NetworkManager, which comes with
+      ;; %desktop-services: neither dhcpcd nor static-networking joins it.
+      (unless desktop?
+        (if static?
+            (format port "          (service static-networking-service-type~%           (list (static-networking~%                   (addresses (list (network-address~%                                 (device ~s)~%                                 (value ~s))))~%                   (routes (list (network-route~%                                  (destination \"default\")~%                                  (gateway ~s))))~%                   (name-servers '~s))))~%"
+                    (assq-ref network 'interface)
+                    (assq-ref network 'address)
+                    (assq-ref network 'gateway)
+                    (or (assq-ref network 'name-servers) '()))
+            (format port "          (service dhcpcd-service-type)~%")))
+      (when (assq-ref answers 'ntp)
+        (format port "          (service ntp-service-type)~%"))
+      ;; The environments that are services, spelled the way render.scm
+      ;; builds them (keep the two lists in step).
+      (for-each
+       (lambda (environment)
+         (let ((type (case environment
+                       ((gnome) "gnome-desktop-service-type")
+                       ((xfce) "xfce-desktop-service-type")
+                       ((mate) "mate-desktop-service-type")
+                       ((plasma) "plasma-desktop-service-type")
+                       (else #f))))
+           (when type
+             (format port "          (service ~a)~%" type))))
+       (answer-environments answers))
+      (when (and desktop? keyboard)
+        (format port "          (set-xorg-configuration~%")
+        (format port "            (xorg-configuration (keyboard-layout ~s)))~%"
+                keyboard)))
     (format port "    )~%")
-    (format port "    (modify-services %base-services~%")
+    (format port "    (modify-services ~a~%"
+            (if (desktop-environment? answers) "%desktop-services" "%base-services"))
     (format port "      (guix-service-type config =>~%")
     (format port "        (guix-configuration~%")
     (format port "         (inherit config)~%")
@@ -234,7 +298,8 @@ carry no `cryptomount' line and the machine could not boot."
        (format port "             (gnu bootloader) (gnu services) (gnu system keyboard)
              (gnu system mapped-devices)
              (gnu packages)~%")
-       (format port "             (gnu services base) (gnu services ssh) (gnu services networking))~%~%")
+       (format port "             (gnu services base) (gnu services ssh) (gnu services networking)~%")
+       (format port "             (gnu services desktop) (gnu services xorg))~%~%")
        (format port "(operating-system~%")
        (format port "  (host-name ~s)~%" (operating-system-host-name os))
        (format port "  (timezone ~s)~%" (operating-system-timezone os))
@@ -246,7 +311,8 @@ carry no `cryptomount' line and the machine could not boot."
        (let ((arguments (selection-kernel-arguments answers)))
          (when (pair? arguments)
            (format port "  (kernel-arguments '~s)~%" arguments)))
-       (let ((extra (answer-package-names answers)))
+       (let ((extra (append (answer-package-names answers)
+                            (answer-desktop-package-names answers))))
          (if (null? extra)
              (format port "  (packages %base-packages)~%")
              (format port "  (packages (append (map specification->package '~s) %base-packages))~%"

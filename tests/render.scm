@@ -14,6 +14,8 @@
              (gnu bootloader)
              (gnu services)
              (gnu services base)
+             (gnu services desktop)
+             (gnu services networking)
              (gradus render)
              (gradus wizard))
 
@@ -256,5 +258,25 @@
             (bootloader-configuration-terminal-inputs config)
             (bootloader-configuration-serial-unit config)
             (bootloader-configuration-serial-speed config))))
+
+
+  (test-assert "a desktop environment renders its services and packages"
+    (let* ((os (render-answers
+                (with-key 'desktop '((environments . (gnome sway))))))
+           (kinds (map service-kind (operating-system-services os)))
+           (names (map package-name (operating-system-packages os))))
+      (and (memq gnome-desktop-service-type kinds)
+           (not (memq dhcpcd-service-type kinds))
+           (member "font-google-noto" names)
+           (member "sway" names)
+           (not (member "icewm" names)))))
+
+  (test-assert "headless keeps its network manager and gains no desktop"
+    (let* ((os (render-answers answers))
+           (kinds (map service-kind (operating-system-services os)))
+           (names (map package-name (operating-system-packages os))))
+      (and (memq dhcpcd-service-type kinds)
+           (not (memq gnome-desktop-service-type kinds))
+           (not (member "font-google-noto" names)))))
 
 (exit (if (zero? (test-runner-fail-count runner)) 0 1))
