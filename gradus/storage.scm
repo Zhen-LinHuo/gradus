@@ -5,6 +5,7 @@
 
 (define-module (gradus storage)
   #:use-module (gradus utils)
+  #:use-module (gradus fs)
   #:use-module (ice-9 match)
   #:use-module (ice-9 string-fun)
   #:use-module (srfi srfi-1)
@@ -14,76 +15,10 @@
   #:export (simple-layout
             parted-arguments
             disk-busy?
-            parse-blkid
-            read-device-map
             partition-name
             lvm-commands
             prepare-target
             prepare-simple))
-
-(define (parse-blkid text)
-  "Parse the output of `blkid -o export' into an association list keyed by
-file-system label.  Each value is an alist with the device name, the type and
-the UUID.  Devices are separated by blank lines, so the order of the fields
-inside a block does not matter.  Devices without a label are skipped: they
-cannot be addressed by the prepare step."
-  (let loop ((lines (string-split text #\newline))
-             (current '())
-             (result '()))
-    (match lines
-      (()
-       ;; Flush the last block, if any.
-       (if (null? current)
-           (reverse result)
-           (let ((label (assq-ref current 'label)))
-             (reverse (if label (acons label current result) result)))))
-      ((line . rest)
-       (cond ((string-null? line)
-              ;; End of one device block.
-              (let ((label (assq-ref current 'label)))
-                (loop rest '()
-                      (if label (acons label current result) result))))
-             (else
-              (match (string-split line #\=)
-                (("DEVNAME" value)
-                 (loop rest (acons 'device value current) result))
-                (("TYPE" value)
-                 (loop rest (acons 'type value current) result))
-                (("UUID" value)
-                 (loop rest (acons 'uuid value current) result))
-                (("LABEL" value)
-                 (loop rest (acons 'label value current) result))
-                (_ (loop rest current result)))))))))
-
-(define (read-device-map devices)
-  "Return the label-keyed device map for the given device names, by running
-blkid on them.  DEVICES is a list of paths such as \"/dev/loop0p2\"."
-  (let-values (((status output) (apply run-command
-                                       (system-tool "blkid")
-                                       "-o" "export" devices)))
-    (unless (zero? status)
-      (error "blkid failed" devices))
-    (parse-blkid output)))
-
-(define (read-btrfs-map root-device)
-  "The device map for a freshly made btrfs ROOT-DEVICE.  libblkid in this image
-predates the block-group-tree superblock that current btrfs-progs writes, so
-blkid sees nothing; btrfs's own tools know the format.  The label is the one
-mkfs was given."
-  (let-values (((status output) (run-command (system-tool "btrfs")
-                                             "filesystem" "show" root-device)))
-    (unless (zero? status)
-      (error "btrfs filesystem show failed" root-device))
-    (let* ((lines (string-split output #\newline))
-           (uuid (any (lambda (line)
-                        (and (string-contains line "uuid:")
-                             (string-trim-both
-                              (last (string-split line #\space)))))
-                      lines)))
-      (list (cons "gradus-root"
-                  (list (cons 'device root-device)
-                        (cons 'type "btrfs")
-                        (cons 'uuid uuid)))))))
 
 (define (partition-name disk number)
   "Return the device name of partition NUMBER on DISK.  Disks whose name ends
@@ -191,9 +126,10 @@ for, is LUKS1 because GRUB has to read the root file system at boot."
     (when swap-part
       (unless (zero? (run-command/stream "mkswap" "-L" "gradus-swap" swap-part))
         (error "mkswap failed" swap-part)))
-    (let ((fs (or (assq-ref storage 'filesystem) "ext4"))
-          (root-device
-           (if encryption
+    (let* ((fs (or (assq-ref storage 'filesystem) (fs-default)))
+           (row (or (fs-lookup fs) (error "unknown file system" fs)))
+           (root-device
+            (if encryption
                (let* ((name (or (assq-ref encryption 'name) "cryptroot"))
                       (mapper (string-append "/dev/mapper/" name))
                       (passphrase (or (assq-ref encryption 'passphrase) "")))
@@ -211,27 +147,20 @@ for, is LUKS1 because GRUB has to read the root file system at boot."
                       (error "cryptsetup open failed" root-part))))
                  mapper)
                root-part)))
-      (let* ((_ (unless (zero? (status:exit-val
+      (let* ((tool (car (fs-capability-mkfs row)))
+             (_ (unless (zero? (status:exit-val
                                 (system* "sh" "-c"
-                                         (format #f "command -v mkfs.~a" fs))))
+                                         (format #f "command -v ~a" tool))))
                   (error (format #f
-                                 "mkfs.~a is not installed on this system; choose another filesystem or add its package to the image"
-                                 fs))))
-             (command (cond ((string=? fs "xfs")
-                             (list "mkfs.xfs" "-f" "-L" "gradus-root" root-device))
-                            ((string=? fs "btrfs")
-                             (list "mkfs.btrfs" "-f" "-L" "gradus-root" root-device))
-                            (else
-                             (list "mkfs.ext4" "-q" "-F" "-L" "gradus-root"
-                                   root-device)))))
+                                 "~a is not installed on this system; choose another filesystem or add its package to the image"
+                                 tool))))
+             (command (fs-mkfs-command row "gradus-root" root-device)))
         (unless (zero? (apply run-command/stream command))
           (error (format #f "~a failed" (car command)) root-device)))
       (append
-       (read-device-map (append (if efi? (list first-part) '())
-                                (if swap-part (list swap-part) '())))
-       (if (string=? fs "btrfs")
-           (read-btrfs-map root-device)
-           (read-device-map (list root-device)))
+       (fs-blkid-map (append (if efi? (list first-part) '())
+                             (if swap-part (list swap-part) '())))
+       (fs-root-identify row root-device "gradus-root")
        ;; render needs the underlying partition for mapped-device, which blkid
        ;; cannot tell from the mapper's own label.
        (if encryption
@@ -295,7 +224,7 @@ are adopted by the declaration, never created."
                 (unless (zero? (apply run-command/stream command))
                   (error "storage command failed" command)))
               (lvm-commands storage))
-    (read-device-map (list esp root))))
+    (fs-blkid-map (list esp root))))
 
 (define (prepare-target answers)
   "Prepare the target described by ANSWERS and return its device map.  The

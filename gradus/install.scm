@@ -7,6 +7,7 @@
   #:use-module (ice-9 popen)
   #:use-module (ice-9 rdelim)
   #:use-module (gradus utils)
+  #:use-module (gradus fs)
   #:use-module (gradus storage)
   #:use-module (gradus render)
   #:use-module (gradus serialize)
@@ -108,11 +109,11 @@ success; raise on the first failure."
 ;; filesystem it is about to boot — it falls into rescue mode claiming
 ;; normal.mod is missing while the file sits right there.
 ;;
-;; How a filesystem settles is its own business, and each needs its own tool:
-;; ext2/3/4 get e2fsck (the failure above was observed on ext), btrfs and xfs
-;; are settled by the clean unmount alone — btrfs check is a recovery tool,
-;; not a routine one, and e2fsck cannot read either of them.  This dispatch is
-;; the temporary form of the filesystem capability table's `settle' field.
+;; How a filesystem settles is its own business and its own tool: the row in
+;; the capability table names the command (ext2/3/4 run e2fsck; btrfs and xfs
+;; settle with the clean unmount alone, and btrfs check is a recovery tool
+;; rather than a routine one).  A filesystem with no row is settled by the
+;; unmount alone.
 (define (findmnt-fields point)
   "Return the (source . type) filesystem mounted at POINT, or #f."
   (let ((port (open-pipe* OPEN_READ "findmnt" "-n" "-o" "SOURCE,FSTYPE" point)))
@@ -124,28 +125,28 @@ success; raise on the first failure."
                   (cons (first fields) (second fields))))))))
 
 (define (finish-target root)
-  "Unmount ROOT and settle its filesystem.  Raise an installer error if the
-target stays mounted or an ext filesystem cannot be repaired; which tool
-settles which filesystem is the capability table's business (see
-docs/architecture.md §4), and ext is the one with an observed failure."
+  "Unmount ROOT and settle its filesystem with the command its capability row
+names.  Raise an installer error if the target stays mounted or the check
+cannot repair the filesystem."
   (unless (member root '("/" "//"))
-    (let ((mounted (findmnt-fields root)))
+    (let* ((mounted (findmnt-fields root))
+           (row (and mounted (fs-lookup (cdr mounted))))
+           (settle (and row (fs-capability-settle row))))
       (log-line "==> unmounting ~a" root)
       (system* "sh" "-c" (string-append "umount -R " root " 2>/dev/null || true"))
       (when (zero? (status:exit-val (system* "mountpoint" "-q" root)))
         (error "the target is still mounted; it cannot be shut down cleanly" root))
-      (let ((device (and mounted (car mounted)))
-            (type (and mounted (cdr mounted))))
-        (when (and device type (member type '("ext2" "ext3" "ext4"))
-                   (file-exists? device))
+      (let ((device (and mounted (car mounted))))
+        (when (and settle device (file-exists? device))
           (log-line "==> checking ~a" device)
           (let ((status (status:exit-val
                          (system* "sh" "-c"
-                                  (string-append "e2fsck -fy " device
+                                  (string-append (string-join settle " ")
+                                                 " " device
                                                  " >/dev/null 2>&1")))))
-            ;; e2fsck exits with a bitmask: 1 means errors corrected, 4 means
-            ;; errors left uncorrected — the latter must not be reported as a
-            ;; successful install.
+            ;; The checker exits with a bitmask: 1 means errors corrected, 4
+            ;; means errors left uncorrected — the latter must not be reported
+            ;; as a successful install.
             (when (and status (>= status 4))
               (error "the filesystem check could not repair the target" device))))))))
 
