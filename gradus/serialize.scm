@@ -20,6 +20,7 @@
   #:use-module (gnu system mapped-devices)
   #:use-module (gradus answers)
   #:use-module (gradus render)
+  #:use-module (gradus selection)
   #:use-module (srfi srfi-1)
   #:export (serialize-answers
             serialize-to-file))
@@ -54,10 +55,7 @@
     (format port "      (type ~s))~%" (file-system-type fs))))
 
 (define (emit-services port answers)
-  (let ((urls (filter-map (lambda (s) (assq-ref s 'url))
-                          (or (assq-ref (assq-ref answers 'source)
-                                        'substitute-services)
-                              '())))
+  (let ((urls (selection-substitute-urls answers))
         (environment (proxy-environment answers)))
     (format port "  (services~%")
     (format port "   (append~%")
@@ -125,7 +123,7 @@ carry no `cryptomount' line and the machine could not boot."
        (let ((keyboard (assq-ref answers 'keyboard)))
          (when keyboard
            (format port "  (keyboard-layout (keyboard-layout ~s))~%" keyboard)))
-       (let ((arguments (assq-ref boot 'extra-kernel-arguments)))
+       (let ((arguments (selection-kernel-arguments answers)))
          (when (pair? arguments)
            (format port "  (kernel-arguments '~s)~%" arguments)))
        (let ((extra (or (assq-ref (assq-ref answers 'software)
