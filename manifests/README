@@ -1,12 +1,19 @@
 # Manifests
 
-The package groups in `package-groups/` are the openSUSE Tumbleweed patterns of the same
-name, carried over as Guix manifest files: the identifier and the summary
-come from the pattern RPMs (`patterns-base-20241218`,
-`patterns-server-20250313`), and the package list is that pattern's
-requirements and recommendations with one operation applied — packages
-that have no same-named Guix package are removed, and nothing is
-substituted for them.
+The package groups in `package-groups/` are the openSUSE Tumbleweed patterns of
+the same name, carried over as Guix manifest files.  The design follows
+openSUSE TW substantially — the group concept, the naming and the package
+selections come from it — while the files themselves use the manifest format
+the Guix manual defines, so the package manager consumes them directly.
+
+Derivation: the identifier and the summary come from the pattern RPMs
+(`patterns-base-20241218`, `patterns-server-20250313`), and the package list
+is that pattern's requirements and recommendations with one operation applied
+— packages that have no same-named Guix package are removed.  When a group is
+added or revised, a package whose Guix name differs while the upstream
+software is the same may be mapped instead, recorded per item; a package with
+no Guix package at all is removed.  A package is never replaced by a
+different one.
 
 A group is kept only when its surviving packages still deliver what its
 name promises.  Patterns dropped whole, with the reason:
@@ -18,6 +25,10 @@ name promises.  Patterns dropped whole, with the reason:
   filesystem are distribution artifacts.
 - `dhcp_dns_server` — kea has no same-named package, so the survivors
   would deliver DNS only under a name that promises DHCP too.
+
+Every package in a group resolves in Guix proper.  Nonfree software is not
+part of this project: an operator who needs it adds their own channels
+(`source.channels`) and their own manifest (`software.manifest`).
 
 These files are plain Guix manifests: `guix package -m <file>` installs
 the group on any Guix machine, with or without this installer.
