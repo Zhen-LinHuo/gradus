@@ -110,11 +110,25 @@ needs to know.
 | how to create it and set its label | `mkfs` tool and label flag |
 | how to read back its label and UUID | `identify` command |
 | how the mounted source is addressed | `mount-source`: label, UUID or device |
+| how it is settled after the last write | `settle` command, or none |
 | what the Guix declaration looks like | `declaration` |
 | what the bootloader needs to know | `boot-notes` |
 
 Adding a file system is adding a row and running the acceptance matrix in
 `docs/testing.md`; no module gains a new special case.
+
+**Settling the target.** The installation does not end when the last file is
+written: the target is unmounted and then settled with the tool its own row
+names. An ext file system left mounted comes down with its journal unapplied,
+stale free counts in the superblock and `orphan_present` still set — flags
+GRUB does not understand, so the machine falls into rescue mode claiming
+`normal.mod` is missing while the file sits in place. Every row therefore
+unmounts; ext2/3/4 additionally run `e2fsck -fy`, which applies the journal
+and corrects the superblock. Rows settle with their own checker when they
+need one: `btrfs check` is a recovery tool rather than a routine one, and
+e2fsck cannot read btrfs or xfs at all. The settle step reads the table — a
+checker that does not understand the file system is an error to report, not a
+check that passes.
 
 **Known exception — identification on btrfs.** libblkid could not read a
 btrfs file system created by current btrfs-progs, whose default on-disk

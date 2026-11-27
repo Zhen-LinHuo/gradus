@@ -30,6 +30,16 @@ Two structural notes:
 - Neither reference installer is declarative. Their "summary" is a summary of
   pending actions; ours is a file the operator can read, copy and install again.
 
+### Finishing the target
+
+Stage 10 does not end when the last file is written. The target is unmounted
+and then settled with the tool its file system type names — ext2/3/4 run
+`e2fsck -fy`, btrfs and xfs are done by the clean unmount alone — and only
+after that does the installer report success. A target left mounted shuts the
+file system down uncleanly, and the bootloader may then be unable to read the
+system it is about to start. The per-file-system dispatch is the `settle`
+field of the capability table (`docs/architecture.md` §4).
+
 ## Bootloader
 
 The reference installers expose three things that matter on real hardware and
