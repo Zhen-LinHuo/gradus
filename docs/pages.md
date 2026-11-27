@@ -21,16 +21,17 @@ the operator cannot inspect first.
 |:--|:--|:--|:--|:--|
 | 1 | Localisation | language, territory, keyboard, timezone | live environment's locale | — |
 | 2 | Source | channels file, substitute services (name, URL, kind, key), proxy | official channels, official substitutes, no proxy | — |
-| 3 | Storage | disk, scheme (simple/LVM), encryption, swap, data volumes, erase consent | no disk selected; erase off | — |
-| 4 | Boot | bootloader (including `none`), target, kernel, extra kernel arguments, menu policy, NVRAM, generations kept | GRUB EFI on the ESP, timeout 5 | — |
-| 5 | Software | base profile, package groups, extra packages, manifest file | headless base | — |
-| 6 | Network | host name, management interface, DHCP or static, wireless, proxy and `no_proxy` | DHCP on the first wired interface | — |
-| 7 | Users | root policy, user accounts, groups, SSH keys | one administrative user, no root login | — |
-| 8 | Review | full `config.scm`, diff against the starting profile, save to removable media | — | — |
-| 9 | Install | confirmation, progress, transcript | — | — |
+| 3 | Desktop | desktop environments (multi-select) | none — headless | — |
+| 4 | Storage | disk, scheme (simple/LVM), encryption, swap, data volumes, erase consent | no disk selected; erase off | — |
+| 5 | Boot | bootloader (including `none`), target, kernel, extra kernel arguments, menu policy, NVRAM, generations kept | GRUB EFI on the ESP, timeout 5 | — |
+| 6 | Software | base profile, package groups, extra packages, manifest file | headless base | — |
+| 7 | Network | host name, management interface, DHCP or static, wireless, proxy and `no_proxy` | DHCP on the first wired interface | — |
+| 8 | Users | root policy, user accounts, groups, SSH keys | one administrative user, no root login | — |
+| 9 | Review | full `config.scm`, diff against the starting profile, save to removable media | — | — |
+| 10 | Install | confirmation, progress, transcript | — | — |
 
-`--config` mode replaces pages 1–8 with a single validation step and goes
-straight to page 9.
+`--config` mode replaces pages 1–9 with a single validation step and goes
+straight to page 10.
 
 ## Page details
 
@@ -69,7 +70,23 @@ The `kind` distinction is shown, not hidden: a mirror needs no key, a builder
 does. Presenting both as "substitute server" would teach the operator to accept
 key prompts without reading them.
 
-### 3. Storage
+### 3. Desktop
+
+The environments, as the official Guix installer offers them: GNOME, Xfce,
+MATE and KDE Plasma arrive as system services; Icewm, Openbox, awesome, i3,
+ratpoison, Emacs EXWM and Sway as package sets. The selection is a
+multi-select — several environments may coexist, and the login manager
+offers the choice at sign-in. Choosing none keeps the headless profile, and
+the profile follows the selection: anything chosen makes it `desktop`,
+nothing keeps it `headless`. An answer file written by hand must keep the
+two in agreement.
+
+A desktop brings NetworkManager with `%desktop-services`, so the installer's
+own DHCP and static networking services stay off the host, and the Xorg
+keyboard comes from the localisation page. The desktop also adds the fonts
+covering the world's scripts, as the official installer does.
+
+### 4. Storage
 
 Disk selection, partitioning scheme, encryption, swap and data volumes.
 
@@ -85,7 +102,7 @@ Non-negotiable behaviours:
 The page produces file systems by UUID (not kernel device names), because the
 declaration outlives the enumeration order.
 
-### 4. Boot
+### 5. Boot
 
 Bootloader family, target and policy, the kernel package, extra kernel
 arguments, menu behaviour and how many previous generations to keep.
@@ -109,7 +126,7 @@ Non-negotiable behaviours:
 The official installer asks none of this, which is why a headless machine
 cannot be given a serial console at install time.
 
-### 5. Software
+### 6. Software
 
 A base profile plus package groups plus free-form package names plus an
 optional manifest. It is deliberately **not** a catalogue browser: Guix has tens
@@ -120,7 +137,7 @@ Selecting a base profile is choosing a starting configuration, not entering a
 code path. The resulting `operating-system` is shown on the review page, and a
 profile that cannot be expressed as a configuration is a bug in the profile.
 
-### 6. Network
+### 7. Network
 
 Host name, management interface, addressing, wireless credentials and proxy.
 
@@ -139,14 +156,14 @@ must accept. Both are written to the target configuration only if the operator
 asks for them to be kept there; otherwise they are used for the live session and
 discarded.
 
-### 7. Users
+### 8. Users
 
 One administrative account is created. Root login is disabled by default.
 Authorised SSH keys are collected as text or from a file; an empty list is
 allowed and leaves password authentication as the only route, which the page
 states plainly.
 
-### 8. Review
+### 9. Review
 
 The review page shows what will be installed: host name, target, layout,
 bootloader, substitutes, packages, accounts and the system identity. Before
@@ -165,7 +182,7 @@ and again at the install confirmation, and cannot be installed.
 The complete declaration may also be saved to removable media, and a diff
 against the profile it started from shows what the answers changed.
 
-### 9. Install
+### 10. Install
 
 A second, explicit confirmation — the default answer is no — names the disk
 one last time. From there the console belongs to the install log: the

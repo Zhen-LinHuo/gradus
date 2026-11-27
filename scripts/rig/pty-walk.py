@@ -28,6 +28,7 @@ STEPS = [
     (["Planned layout"], "\r"),               # plan: use it
     (["Substitute servers"], "\r"),           # source: accept the list
     (["HTTP proxy"], "\r"),                   # source: no proxy; the page continues
+    (["Desktop environment"], "c"),            # desktop: no environment, headless
     (["Software"], "c"),                   # software: accept
     (["Boot loader"], "c"),                   # boot: accept
     (["Host name"], "c"),                     # network: accept

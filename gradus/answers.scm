@@ -18,7 +18,12 @@
 
 (define %known-keys
   '(schema-version profile locale timezone keyboard ntp host-name root-password
-    proxy source storage assemble boot network users software))
+    proxy source storage assemble boot network users software desktop))
+
+;; The environments the installer offers, matching the official Guix
+;; installer's list: four are system services, the rest are package sets.
+(define %known-environments
+  '(gnome xfce mate plasma icewm openbox awesome i3 ratpoison exwm sway))
 
 (define %required-keys '(schema-version profile storage users))
 
@@ -240,6 +245,44 @@ unattended file would otherwise silently install nothing extra."
                         id (string-join (map symbol->string (package-group-ids)) ", ")))))
            groups))))))
 
+(define (check-desktop answers)
+  "The desktop section names environments the official installer offers, and
+the profile agrees with whether any are chosen."
+  (let ((desktop (assq-ref answers 'desktop)))
+    (when desktop
+      (unless (and (list? desktop) (every pair? desktop))
+        (answers-error "desktop must be an association list"))
+      (let loop ((entries desktop))
+        (when (pair? entries)
+          (unless (memq (caar entries) '(environments))
+            (answers-error (format #f "unknown desktop key: ~a"
+                                   (caar entries))))
+          (loop (cdr entries))))
+      (let ((environments (assq-ref desktop 'environments)))
+        (when environments
+          (unless (and (list? environments) (every symbol? environments))
+            (answers-error
+             "desktop.environments must be a list of environment names"))
+          (let ((unknown (filter (lambda (name)
+                                   (not (memq name %known-environments)))
+                                 environments)))
+            (when (pair? unknown)
+              (answers-error
+               (format #f "unknown desktop environment: ~a (available: ~a)"
+                       (car unknown)
+                       (string-join (map symbol->string
+                                         %known-environments)
+                                    " "))))))))
+    (let ((profile (assq-ref answers 'profile))
+          (environments (and (list? desktop)
+                             (assq-ref desktop 'environments))))
+      (when (and (pair? environments) (equal? profile "headless"))
+        (answers-error
+         "desktop.environments needs profile desktop or custom, not headless"))
+      (when (and (not (pair? environments)) (equal? profile "desktop"))
+        (answers-error
+         "profile desktop promises a desktop environment; choose one or lower the profile")))))
+
 (define (validate-answers answers)
   "Validate an answer form.  Return the form unchanged, or raise an
 answers error listing the first problem found."
@@ -252,4 +295,5 @@ answers error listing the first problem found."
   (check-source answers)
   (check-proxy answers)
   (check-software answers)
+  (check-desktop answers)
   answers)

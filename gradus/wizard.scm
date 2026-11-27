@@ -30,7 +30,8 @@
 ;; the source is chosen before the software that will be fetched from it, and
 ;; the system-wide settings (timezone, NTP) sit near the end.
 (define %wizard-steps
-  '(language locale storage source software boot network users review install))
+  '(language locale storage source desktop software boot network users
+    review install))
 
 ;; A wizard holds three things: the answers collected so far, the current step,
 ;; and the interface language.  The language is deliberately *not* an answer:

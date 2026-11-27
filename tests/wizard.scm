@@ -20,7 +20,8 @@
   0 (length (wizard-answers w)))
 
 (test-equal "next moves through the steps in order"
-  '(review users network boot software source storage locale language)
+  '(review users network boot software desktop source storage locale
+    language)
   (let loop ((current w) (seen '()))
     (if (wizard-complete? current)
         seen
