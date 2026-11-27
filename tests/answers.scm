@@ -211,6 +211,29 @@
       (lambda args #t))))
 
 (test-with-runner runner
+  (test-assert "an unknown group is rejected"
+    (catch #t
+      (lambda ()
+        (validate-answers
+         (with-key 'software '((package-groups . (nonexistent-group))) base-minimal))
+        #f)
+      (lambda args #t))))
+
+(test-with-runner runner
+  (test-assert "a bundled group validates"
+    (validate-answers
+     (with-key 'software '((package-groups . (gateway_server console))) base-minimal))))
+
+(test-with-runner runner
+  (test-assert "an unknown software key is rejected"
+    (catch #t
+      (lambda ()
+        (validate-answers
+         (with-key 'software '((patternz . ())) base-minimal))
+        #f)
+      (lambda args #t))))
+
+(test-with-runner runner
   (test-assert "the contract's source and proxy shapes validate"
     (validate-answers
      (copy-tree

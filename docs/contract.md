@@ -136,6 +136,7 @@ policies, and the renderer fills in everything else from the selected profile.
    (ssh-keys . ("ssh-ed25519 AAAA..."))))
 
  (software
+  (package-groups . ())
   (extra-packages . ())
   (manifest . #f)))
 ```
@@ -144,6 +145,11 @@ Rules:
 
 - Unknown keys are an error, not ignored. Silent acceptance of a typo is how an
   unattended install ends up different from what the operator reviewed.
+- `software.package-groups` names the installer's bundled package groups.
+  Each package group is a Guix manifest file the machine can also consume on
+  its own with `guix package -m <file>`; an unknown name is an error, and the
+  group's packages are added to the named packages in
+  `software.extra-packages`.
 - Every key in the example above is optional except `schema-version`, `profile`,
   `storage` and `users`; omitted keys take documented defaults.
 - `erase` defaults to `#f`. A data volume is never formatted implicitly; each
