@@ -18,7 +18,7 @@ flowchart TB
         WIZ["wizard.scm<br/>page and field state machine<br/>(fields are plain data)"]
         SEL["selection models<br/>(channels, substitutes, proxy,<br/>package patterns, kernel arguments)"]
         FS["filesystem capability table<br/>(one row per supported file system)"]
-        OPS["storage.scm · install.scm<br/>render.scm · serialize.scm"]
+        OPS["storage.scm · install.scm<br/>render.scm · serialize.scm<br/>review.scm"]
     end
     subgraph fe["frontends — thin clients"]
         TUI["tui.scm<br/>(ncurses)"]
@@ -164,8 +164,8 @@ Implemented today: the answer schema and validator, the wizard page model
 with its back semantics, typed conditions, the selection models for
 substitutes, proxy and kernel arguments, the filesystem capability table
 with its settling dispatch, the package-group manifests and their expansion
-into the package set, the storage operations for the supported file systems,
-and the TUI. Not yet consumed: channels, specified above; and the `profile`
+into the package set, the review workflow with its inspect, edit and confirm
+gates, the storage operations for the supported file systems, and the TUI. Not yet consumed: channels, specified above; and the `profile`
 key, whose package contents arrive with a future desktop group. The web
 frontend is planned. Until a section is implemented, `docs/contract.md`
 section 2 and `docs/pages.md` remain the authority on what the software
