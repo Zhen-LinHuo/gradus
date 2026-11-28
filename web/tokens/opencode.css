@@ -1,0 +1,48 @@
+/* opencode — tokens for the Gradus web frame.
+   Source: templates/opencode/DESIGN.md (values verbatim).
+   Terminal-native: 100% mono, warm cream, ASCII vocabulary. */
+:root {
+  --color-primary: #201d1d;
+  --color-primary-hover: #0f0000;
+  --color-link: #007aff;
+  --color-canvas: #fdfcfc;
+  --color-surface: #f8f7f7;
+  --color-surface-raised: #f1eeee;
+  --color-surface-dark: #201d1d;
+  --color-surface-dark-elevated: #302c2c;
+  --color-text: #201d1d;
+  --color-text-muted: #424245;
+  --color-text-tertiary: #646262;
+  --color-text-inverse: #fdfcfc;
+  --color-text-inverse-muted: #9a9898;
+  --color-border: rgba(15, 0, 0, 0.12);
+  --color-border-strong: #646262;
+  --color-focus: #007aff;
+  --color-danger: #ff3b30;
+  --color-success: #30d158;
+  --color-warning: #ff9f0a;
+  --color-code-bg: #201d1d;
+  --color-code-fg: #fdfcfc;
+  --font-ui: "Berkeley Mono, IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace";
+  --font-mono: var(--font-ui);      /* the whole page is mono — that IS the brand */
+  --space-1: 1px; --space-2: 4px; --space-3: 8px; --space-4: 12px;
+  --space-5: 16px; --space-6: 24px; --space-7: 32px; --space-8: 96px;
+  --radius-sm: 4px; --radius-md: 4px; --radius-lg: 4px; --radius-xl: 4px;
+  --radius-pill: 9999px;
+  --shadow-card: none;              /* nothing lifts; inversion is the depth */
+}
+[data-theme="dark"] {
+  /* The dark reading is the TUI mockup surface, analysed as such. */
+  --color-canvas: #201d1d;
+  --color-surface: #302c2c;
+  --color-surface-raised: #302c2c;
+  --color-text: #fdfcfc;
+  --color-text-muted: #9a9898;
+  --color-text-tertiary: #9a9898;
+  --color-border: rgba(253, 252, 252, 0.14);
+  --color-border-strong: #646262;
+  --color-link: #007aff;
+  --color-focus: #007aff;
+  --color-code-bg: #302c2c;
+  --color-code-fg: #fdfcfc;
+}

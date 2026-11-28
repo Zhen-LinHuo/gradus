@@ -1,0 +1,45 @@
+/* dell-1996 — tokens for the Gradus web frame.
+   Source: templates/dell-1996/DESIGN.md (values verbatim).
+   Period-authentic: system fonts only, square everything, GIF-era tints. */
+:root {
+  --color-primary: #e91d2a;
+  --color-primary-hover: #d01a26;
+  --color-link: #0000ee;
+  --color-canvas: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-soft: #ffffff;
+  --color-surface-strong: #ffffff;
+  --color-text: #000000;
+  --color-text-muted: #000000;
+  --color-text-tertiary: #000000;
+  --color-text-inverse: #ffffff;
+  --color-border: #000000;         /* every border is a hard black line */
+  --color-border-strong: #000000;
+  --color-focus: #0000ee;
+  --color-danger: #e91d2a;
+  --color-success: #008000;
+  --color-warning: #fcc20f;
+  --color-code-bg: #ffffff;
+  --font-ui: "Helvetica, Arial, system-ui, sans-serif";
+  --font-display: "Arial Black, Helvetica, system-ui, sans-serif";
+  --font-mono: "'Courier New', monospace";
+  --font-body: "'Times New Roman', Times, serif";   /* body copy is serif */
+  --space-1: 2px; --space-2: 4px; --space-3: 8px; --space-4: 12px;
+  --space-5: 16px; --space-6: 24px; --space-7: 40px;
+  --radius-sm: 0px; --radius-md: 0px; --radius-lg: 0px; --radius-xl: 0px;
+  --radius-pill: 0px;
+  --shadow-card: none;             /* bevels, not shadows */
+  --frame-ink: #000000;            /* the literal page frame */
+  --tint-sage: #b3bd95; --tint-salmon: #d77a7a; --tint-peach: #e6915d;
+  --tint-lime: #c0d4a7; --tint-sky: #9ab6c8; --tint-steel: #a5b8c0;
+  --tint-periwinkle: #8c9ae0; --tint-olive: #8e8a25;
+  --sticker-yellow: #fcc20f;
+}
+[data-theme="dark"] {
+  /* Period-authentic: 1996 had no theme toggle. The frame is the darkness. */
+  --color-canvas: #ffffff;
+  --color-surface: #ffffff;
+  --color-text: #000000;
+  --color-text-muted: #000000;
+  --color-border: #000000;
+}
