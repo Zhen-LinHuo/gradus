@@ -133,6 +133,7 @@ guarantees the installer makes.
 | [`docs/implementation.md`](docs/implementation.md) | Language, module layout, Guix boundary, upstream coding conventions |
 | [`docs/testing.md`](docs/testing.md) | Acceptance tests and the VM/hardware matrix every release must pass |
 | [`docs/upstream.md`](docs/upstream.md) | What belongs in this project and what belongs in Guix itself |
+| [`docs/webui.md`](docs/webui.md) | The web front-end: stack, theming, feature baseline vs openSUSE TW and Agama, endpoints |
 
 ## Implementation
 
