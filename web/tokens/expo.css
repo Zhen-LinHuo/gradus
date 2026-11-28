@@ -1,0 +1,48 @@
+/* expo — tokens for the Gradus web frame.
+   Source: templates/expo/DESIGN.md (values verbatim). */
+:root {
+  --color-primary: #000000;
+  --color-primary-hover: #1a1a1a;
+  --color-link: #0d74ce;
+  --color-canvas: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-soft: #fafafa;
+  --color-surface-strong: #f0f0f3;
+  --color-text: #171717;
+  --color-text-muted: #60646c;
+  --color-text-tertiary: #999999;
+  --color-text-inverse: #ffffff;
+  --color-border: #f0f0f3;
+  --color-border-soft: #f5f5f7;
+  --color-border-strong: #dcdee0;
+  --color-focus: #2547d0;
+  --color-danger: #eb8e90;
+  --color-success: #16a34a;
+  --color-warning: #ab6400;
+  --color-code-bg: #171717;
+  --color-code-fg: #ffffff;
+  --color-hero-wash-a: #cfe7ff;
+  --color-hero-wash-b: #a8c8e8;
+  --font-ui: "Inter, -apple-system, system-ui, sans-serif";
+  --font-mono: "'JetBrains Mono', 'Fira Code', monospace";
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-7: 32px;
+  --radius-xs: 4px; --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
+  --radius-xl: 16px;
+  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+[data-theme="dark"] {
+  --color-canvas: #171717;
+  --color-surface: #1a1a1a;
+  --color-surface-soft: #1f1f1f;
+  --color-surface-strong: #2a2a2c;
+  --color-text: #ffffff;
+  --color-text-muted: #b0b4ba;
+  --color-text-tertiary: #999999;
+  --color-border: #2e2e2e;
+  --color-border-strong: #3e3e44;
+  --color-link: #47c2ff;
+  --color-focus: #47c2ff;
+  --color-code-bg: #1a1a1a;
+  --color-code-fg: #f5f5f7;
+}
